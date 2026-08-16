@@ -140,9 +140,12 @@ export interface SiteSettings {
   instagramLink: string;
   youtubeLink: string;
   instructorName?: string;
+  instructorNameEn?: string;
   instructorTitle?: string;
   instructorBio?: string;
   instructorPhoto?: string;
+  instructor_photo_url?: string;
+  instructorPhotoUrl?: string;
   courseScreenshots?: CourseScreenshot[];
   modules: ModuleItem[];
   faqs: FAQItem[];

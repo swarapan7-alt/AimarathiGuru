@@ -1,8 +1,10 @@
 import React from 'react';
-import { Award, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Award, CheckCircle2, Sparkles } from 'lucide-react';
+import { InstructorPhoto } from './InstructorPhoto';
 
 interface InstructorSectionProps {
   instructorName?: string;
+  instructorNameEn?: string;
   instructorTitle?: string;
   instructorBio?: string;
   instructorPhoto?: string;
@@ -12,63 +14,74 @@ interface InstructorSectionProps {
 export const InstructorSection: React.FC<InstructorSectionProps> = ({
   instructorPhoto = '',
 }) => {
-  const hasPhoto = instructorPhoto && instructorPhoto.trim().startsWith('http');
-
   return (
-    <section id="instructor" className="py-12 sm:py-16 bg-white border-b border-stone-200/80">
+    <section id="instructor" className="py-14 sm:py-20 bg-white border-b border-stone-200/80">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Compact Clean Instructor Card */}
-        <div className="bg-[#FAF8F5] rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-6">
-          
-          {/* Small Circular Avatar / Thumbnail */}
-          <div className="shrink-0 relative">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-amber-400 p-0.5 shadow-md bg-stone-900 flex items-center justify-center">
-              {hasPhoto ? (
-                <img
-                  src={instructorPhoto.trim()}
-                  alt="श्री. पंकज वाघमारे"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                <div className="w-full h-full rounded-full bg-gradient-to-tr from-[#0F172A] to-[#1E3A8A] flex items-center justify-center text-white">
-                  <span className="text-xl sm:text-2xl font-bold font-marathi-title">PW</span>
-                </div>
-              )}
-            </div>
-            <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 p-1 rounded-full border-2 border-white shadow-xs">
-              <Award className="w-3.5 h-3.5" />
-            </div>
+        {/* Section Header */}
+        <div className="text-center max-w-xl mx-auto mb-8 sm:mb-10 space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-900 text-xs font-black uppercase tracking-wider font-poppins shadow-xs">
+            <Award className="w-3.5 h-3.5 text-amber-600" />
+            <span>TRAINER & FOUNDER</span>
           </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-stone-900 font-marathi-title">
+            तुमचे <span className="text-[#E53935]">मार्गदर्शक</span>
+          </h2>
+        </div>
 
-          {/* Text Content */}
-          <div className="text-center sm:text-left space-y-2.5 flex-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase font-poppins">
-              <ShieldCheck className="w-3 h-3 text-amber-700" />
-              <span>Instructor Profile</span>
+        {/* Single Premium Instructor Card */}
+        <div className="relative bg-[#FAF8F5] rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-md shadow-stone-200/50 flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
+          
+          {/* Smaller Professional Portrait of Mr. Pankaj Waghmare */}
+          <InstructorPhoto
+            photoUrl={instructorPhoto}
+            variant="card"
+          />
+
+          {/* Instructor Content */}
+          <div className="text-center sm:text-left space-y-3.5 flex-1">
+            
+            {/* Master Trainer Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100/80 border border-amber-300 text-amber-950 text-[11px] font-black uppercase font-poppins tracking-wider">
+              <Sparkles className="w-3 h-3 text-amber-700" />
+              <span>MASTER TRAINER</span>
             </div>
 
-            <div>
-              <h3 className="text-2xl sm:text-3xl text-stone-900 font-marathi-calligraphy tracking-wide">
+            {/* Names (Marathi Calligraphy + Clean English) */}
+            <div className="space-y-1">
+              <h3 className="text-3xl sm:text-4xl font-bold text-stone-900 font-marathi-calligraphy tracking-wide leading-tight">
                 श्री. पंकज वाघमारे
               </h3>
+              <p className="text-base sm:text-lg font-bold text-stone-700 font-poppins">
+                Mr. Pankaj Waghmare
+              </p>
               <p className="text-sm font-bold text-[#E53935] font-poppins">
-                Founder & CEO, AI Marathi Guru
+                Founder & CEO, <span className="text-stone-900">AI Marathi Guru</span>
               </p>
             </div>
 
-            {/* 2 Short Lines About Experience & Practical Training */}
-            <div className="space-y-1.5 text-xs sm:text-sm text-stone-600 font-marathi-sub leading-relaxed pt-1">
-              <p className="flex items-center justify-center sm:justify-start gap-2">
+            {/* Exactly 3 Clean Trust Points */}
+            <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-stone-200/80 shadow-xs text-xs sm:text-sm font-bold text-stone-800 font-poppins">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>८,०००+ मराठी विद्यार्थ्यांना व व्यावसायिकांना सोप्या मराठी भाषेत AI चे थेट प्रशिक्षण.</span>
-              </p>
-              <p className="flex items-center justify-center sm:justify-start gap-2">
+                <span className="font-marathi-sub font-bold">Practical AI Learning</span>
+              </div>
+              
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-stone-200/80 shadow-xs text-xs sm:text-sm font-bold text-stone-800 font-poppins">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>कोणतेही अवघड तांत्रिक शब्द न वापरता प्रत्यक्ष कामात उपयोगी पडणाऱ्या साधनांचे मार्गदर्शन.</span>
-              </p>
+                <span className="font-marathi-sub font-bold">Live Training</span>
+              </div>
+              
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-stone-200/80 shadow-xs text-xs sm:text-sm font-bold text-stone-800 font-poppins">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-marathi-sub font-bold">Business-Focused Guidance</span>
+              </div>
             </div>
+
+            <p className="text-xs sm:text-sm text-stone-600 font-marathi-sub leading-relaxed pt-1">
+              ८,०००+ मराठी विद्यार्थी, व्यावसायिक, शेतकरी व उद्योजकांना AI तंत्रज्ञानाचे सोप्या भाषेत थेट प्रात्यक्षिकासह प्रशिक्षण दिलेले तज्ज्ञ मार्गदर्शक.
+            </p>
+
           </div>
 
         </div>

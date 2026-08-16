@@ -85,6 +85,17 @@ export default function App() {
   // Fetch Site Content from API
   useEffect(() => {
     fetchContent();
+
+    const handleSettingsUpdated = () => {
+      fetchContent();
+    };
+
+    window.addEventListener('websiteSettingsUpdated', handleSettingsUpdated);
+    window.addEventListener('website-settings-updated', handleSettingsUpdated);
+    return () => {
+      window.removeEventListener('websiteSettingsUpdated', handleSettingsUpdated);
+      window.removeEventListener('website-settings-updated', handleSettingsUpdated);
+    };
   }, []);
 
   const fetchContent = async () => {
@@ -179,7 +190,7 @@ export default function App() {
         {/* 2. HERO SECTION */}
         <HeroSection
           onScrollToRegister={scrollToRegister}
-          instructorPhoto={siteSettings.instructorPhoto}
+          instructorPhoto={siteSettings.instructor_photo_url || siteSettings.instructorPhoto || siteSettings.instructorPhotoUrl || ''}
           communityLink={communityLink}
         />
 
@@ -189,12 +200,13 @@ export default function App() {
         {/* 4. LIVE SESSION SECTION (5 clean cards) */}
         <LiveSessionSection onScrollToRegister={scrollToRegister} />
 
-        {/* 5. ABOUT INSTRUCTOR (Small, tasteful calligraphy name) */}
+        {/* 5. ABOUT INSTRUCTOR (Single Premium Card) */}
         <InstructorSection
-          instructorName={siteSettings.instructorName}
-          instructorTitle={siteSettings.instructorTitle}
+          instructorName={siteSettings.instructorName || 'श्री. पंकज वाघमारे'}
+          instructorNameEn={siteSettings.instructorNameEn || 'Mr. Pankaj Waghmare'}
+          instructorTitle={siteSettings.instructorTitle || 'Founder & CEO, AI Marathi Guru'}
           instructorBio={siteSettings.instructorBio}
-          instructorPhoto={siteSettings.instructorPhoto}
+          instructorPhoto={siteSettings.instructor_photo_url || siteSettings.instructorPhoto || siteSettings.instructorPhotoUrl || ''}
           onScrollToRegister={scrollToRegister}
         />
 

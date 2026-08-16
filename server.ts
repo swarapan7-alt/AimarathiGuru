@@ -12,7 +12,21 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Ensure Public & Uploads Directory Exists
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
+if (!fs.existsSync(PUBLIC_DIR)) {
+  fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+}
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.static(PUBLIC_DIR));
+app.use('/public', express.static(PUBLIC_DIR));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Password Hashing Utility
 const SALT = 'AMG_SECURE_SALT_2026';
@@ -214,9 +228,12 @@ interface DBStructure {
     instagramLink: string;
     youtubeLink: string;
     instructorName: string;
+    instructorNameEn?: string;
     instructorTitle: string;
     instructorBio: string;
     instructorPhoto: string;
+    instructor_photo_url?: string;
+    instructorPhotoUrl?: string;
     courseScreenshots?: Array<{ id: string; title: string; imageUrl: string; description?: string }>;
     modules: typeof DEFAULT_MODULES;
     faqs: typeof DEFAULT_FAQS;
@@ -406,10 +423,13 @@ function loadDB(): DBStructure {
       websiteUrl: existingData?.siteSettings?.websiteUrl || 'https://aimarathi.swaraudyog.com',
       instagramLink: existingData?.siteSettings?.instagramLink || 'https://instagram.com/aimarathiguru',
       youtubeLink: existingData?.siteSettings?.youtubeLink || 'https://youtube.com/aimarathiguru',
-      instructorName: existingData?.siteSettings?.instructorName || 'मा. पंकज वाघमारे (Mr. Pankaj Waghmare)',
-      instructorTitle: existingData?.siteSettings?.instructorTitle || 'Founder & CEO, AI Marathi Guru (Under Swara Udyog Samuh)',
+      instructorName: existingData?.siteSettings?.instructorName || 'श्री. पंकज वाघमारे',
+      instructorNameEn: existingData?.siteSettings?.instructorNameEn || 'Mr. Pankaj Waghmare',
+      instructorTitle: existingData?.siteSettings?.instructorTitle || 'Founder & CEO, AI Marathi Guru',
       instructorBio: existingData?.siteSettings?.instructorBio || '८,०००+ मराठी विद्यार्थी, व्यावसायिक, शिक्षक व उद्योजकांना AI चे सोप्या भाषेत लाईव्ह ऑनलाईन प्रशिक्षण.',
-      instructorPhoto: existingData?.siteSettings?.instructorPhoto || '',
+      instructorPhoto: existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
+      instructor_photo_url: existingData?.siteSettings?.instructor_photo_url || existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
+      instructorPhotoUrl: existingData?.siteSettings?.instructorPhotoUrl || existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
       courseScreenshots: existingData?.siteSettings?.courseScreenshots || [
         {
           id: 'scr_1',
@@ -629,10 +649,14 @@ app.get('/api/health', (req, res) => {
 // 2. Public Site Content & Settings (Combined)
 app.get('/api/content', (req, res) => {
   const activeCourseDates = getComputedCourseDates();
+  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
 
   res.json({
     siteSettings: {
       ...db.siteSettings,
+      instructor_photo_url: currentPhoto,
+      instructorPhoto: currentPhoto,
+      instructorPhotoUrl: currentPhoto,
       courseFee: db.paymentSettings.courseFee,
       oldPrice: db.paymentSettings.originalFee,
     },
@@ -1352,8 +1376,14 @@ app.put('/api/admin/live-session', authenticateAdmin, (req, res) => {
 
 // 17. Central Website Content / CMS Settings
 app.get('/api/admin/website-settings', authenticateAdmin, (req, res) => {
+  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
   res.json({
-    siteSettings: db.siteSettings,
+    siteSettings: {
+      ...db.siteSettings,
+      instructor_photo_url: currentPhoto,
+      instructorPhoto: currentPhoto,
+      instructorPhotoUrl: currentPhoto,
+    },
     paymentSettings: db.paymentSettings,
     whatsappSettings: db.whatsappSettings,
     liveSessionSettings: db.liveSessionSettings,
@@ -1371,6 +1401,9 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
     instructorTitle,
     instructorBio,
     instructorPhoto,
+    instructor_photo_url,
+    instructorPhotoUrl,
+    imageBase64,
     whatsappCommunityLink,
     razorpayPaymentLink,
     googleMeetLink,
@@ -1394,7 +1427,27 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   if (instructorName !== undefined) db.siteSettings.instructorName = instructorName;
   if (instructorTitle !== undefined) db.siteSettings.instructorTitle = instructorTitle;
   if (instructorBio !== undefined) db.siteSettings.instructorBio = instructorBio;
-  if (instructorPhoto !== undefined) db.siteSettings.instructorPhoto = instructorPhoto;
+
+  const resolvedPhoto = imageBase64 || instructor_photo_url || instructorPhoto || instructorPhotoUrl;
+  if (resolvedPhoto !== undefined && resolvedPhoto !== null) {
+    if (typeof resolvedPhoto === 'string' && resolvedPhoto.startsWith('data:image/')) {
+      try {
+        const publicDir = path.join(__dirname, 'public');
+        const uploadsDir = path.join(publicDir, 'uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        const base64Data = resolvedPhoto.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        fs.writeFileSync(path.join(publicDir, 'pankaj-photo.png'), buffer);
+        fs.writeFileSync(path.join(uploadsDir, 'instructor-photo.png'), buffer);
+      } catch (err) {
+        console.error('Failed to write photo to disk:', err);
+      }
+    }
+    db.siteSettings.instructor_photo_url = resolvedPhoto;
+    db.siteSettings.instructorPhoto = resolvedPhoto;
+    db.siteSettings.instructorPhotoUrl = resolvedPhoto;
+  }
+
   if (instagramLink !== undefined) db.siteSettings.instagramLink = instagramLink;
   if (youtubeLink !== undefined) db.siteSettings.youtubeLink = youtubeLink;
   if (contactNumber !== undefined) db.siteSettings.contactNumber = contactNumber;
@@ -1414,11 +1467,65 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   saveDB(db);
   addAuditLog((req as any).admin.username, 'UPDATE_WEBSITE_SETTINGS', 'Updated central website settings & CMS.');
 
+  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
   res.json({
     success: true,
     message: 'वेबसाईट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.',
-    siteSettings: db.siteSettings,
+    siteSettings: {
+      ...db.siteSettings,
+      instructor_photo_url: currentPhoto,
+      instructorPhoto: currentPhoto,
+      instructorPhotoUrl: currentPhoto,
+    },
   });
+});
+
+// 17.1 Dedicated Instructor Photo Upload Endpoint
+app.post('/api/admin/upload-instructor-photo', authenticateAdmin, (req, res) => {
+  const { imageBase64, photoUrl, instructor_photo_url, instructorPhoto } = req.body;
+  const imageInput = imageBase64 || instructor_photo_url || photoUrl || instructorPhoto;
+
+  if (!imageInput) {
+    return res.status(400).json({ error: 'Image data or URL is required.' });
+  }
+
+  try {
+    const publicDir = path.join(__dirname, 'public');
+    const uploadsDir = path.join(publicDir, 'uploads');
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+    if (typeof imageInput === 'string' && imageInput.startsWith('data:image/')) {
+      const base64Data = imageInput.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(path.join(publicDir, 'pankaj-photo.png'), buffer);
+      fs.writeFileSync(path.join(uploadsDir, 'instructor-photo.png'), buffer);
+      
+      db.siteSettings.instructor_photo_url = imageInput;
+      db.siteSettings.instructorPhoto = imageInput;
+      db.siteSettings.instructorPhotoUrl = imageInput;
+    } else {
+      const trimmedUrl = String(imageInput).trim();
+      db.siteSettings.instructor_photo_url = trimmedUrl;
+      db.siteSettings.instructorPhoto = trimmedUrl;
+      db.siteSettings.instructorPhotoUrl = trimmedUrl;
+    }
+
+    saveDB(db);
+    addAuditLog((req as any).admin.username, 'UPDATE_INSTRUCTOR_PHOTO', 'Updated official instructor portrait photo.');
+
+    const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || '';
+    return res.json({
+      success: true,
+      message: 'फोटो यशस्वीरित्या अपडेट झाला आणि वेबसाईटवर लाइव्ह झाला आहे!',
+      photoUrl: currentPhoto,
+      instructor_photo_url: currentPhoto,
+      siteSettings: db.siteSettings,
+    });
+  } catch (err: any) {
+    console.error('Error uploading photo:', err);
+    return res.status(500).json({ error: 'फोटो सेव्ह करताना त्रुटी आली.' });
+  }
 });
 
 // 18. Admin Credentials Settings (Username & Password Change)

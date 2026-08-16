@@ -1,12 +1,9 @@
 import React from 'react';
 import {
   Sparkles,
-  Bot,
-  Smartphone,
   Zap,
   CheckCircle2,
-  Instagram,
-  Palette,
+  ArrowRight,
 } from 'lucide-react';
 import { InstructorPhoto } from './InstructorPhoto';
 
@@ -23,9 +20,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   return (
     <section className="relative overflow-hidden bg-[#FAF8F5] text-stone-900 pt-8 pb-14 sm:pt-14 sm:pb-20 border-b border-stone-200/80">
       
-      {/* Background Soft Glows */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-100/60 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 left-0 w-80 h-80 bg-blue-100/50 rounded-full blur-3xl pointer-events-none" />
+      {/* Background Soft Gradients */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-100/50 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 left-0 w-80 h-80 bg-blue-100/40 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(#E2E8F0_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -35,17 +32,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
             
             {/* Small Premium Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-100/80 border border-amber-300/80 text-amber-900 text-xs font-black uppercase tracking-wider shadow-xs">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-100/80 border border-amber-300/80 text-amber-950 text-xs font-black uppercase tracking-wider shadow-xs font-poppins">
               <span className="w-2 h-2 rounded-full bg-[#E53935] animate-ping" />
               <Zap className="w-3.5 h-3.5 text-amber-700" />
-              <span>LIVE ONLINE TRAINING</span>
+              <span>LIVE AI TRAINING</span>
             </div>
 
-            {/* Main Heading */}
+            {/* Main Heading: AI मराठीत शिका. व्यवसायासाठी वापरा. */}
             <div className="space-y-1">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-stone-900 leading-[1.2] font-marathi-title">
                 AI मराठीत शिका. <br />
-                <span className="text-[#E53935]">व्यवसायासाठी वापरा.</span>
+                <span className="text-[#E53935] font-marathi-calligraphy font-bold">व्यवसायासाठी वापरा.</span>
               </h1>
             </div>
 
@@ -78,7 +75,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 className="bg-[#E53935] hover:bg-[#D32F2F] text-white font-extrabold text-base sm:text-lg px-8 py-4 rounded-full transition-all shadow-lg shadow-red-500/25 hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer font-poppins uppercase tracking-wider"
               >
                 <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-                <span>✨ REGISTER NOW</span>
+                <span>REGISTER NOW</span>
+                <ArrowRight className="w-5 h-5" />
               </button>
             </div>
 
@@ -100,56 +98,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
           </div>
 
-          {/* Right Side: Real Photo & Subtle Technology Badges */}
-          <div className="lg:col-span-5 flex justify-center relative">
-            
-            {/* Subtle Tech Badge 1: ChatGPT (Top Left) */}
-            <div className="absolute -top-3 -left-2 sm:-left-6 bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-stone-200 shadow-lg z-20 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                <Bot className="w-4 h-4" />
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] font-black text-stone-900 font-poppins">ChatGPT</p>
-                <p className="text-[9px] text-stone-500 font-marathi-sub">मराठी उपयोग</p>
-              </div>
-            </div>
-
-            {/* Subtle Tech Badge 2: Google Gemini (Top Right) */}
-            <div className="absolute top-6 -right-2 sm:-right-6 bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-stone-200 shadow-lg z-20 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                <Sparkles className="w-4 h-4 text-blue-700" />
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] font-black text-stone-900 font-poppins">Google Gemini</p>
-                <p className="text-[9px] text-stone-500 font-marathi-sub">Practical AI</p>
-              </div>
-            </div>
-
-            {/* Subtle Tech Badge 3: Jio + Gemini Offer (Bottom Left) */}
-            <div className="absolute -bottom-3 -left-2 sm:-left-6 bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-stone-200 shadow-lg z-20 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                <Smartphone className="w-4 h-4" />
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] font-black text-stone-900 font-poppins">Jio + Gemini</p>
-                <p className="text-[9px] text-stone-500 font-marathi-sub">₹349 Benefits</p>
-              </div>
-            </div>
-
-            {/* Subtle Tech Badge 4: Posters & Instagram (Bottom Right) */}
-            <div className="absolute -bottom-2 -right-2 sm:-right-6 bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-stone-200 shadow-lg z-20 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-pink-100 text-pink-700 flex items-center justify-center font-bold text-xs">
-                <Instagram className="w-4 h-4" />
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] font-black text-stone-900 font-poppins">Instagram AI</p>
-                <p className="text-[9px] text-stone-500 font-marathi-sub">Business Growth</p>
-              </div>
-            </div>
-
-            {/* Single Real Photo Card */}
-            <InstructorPhoto photoUrl={instructorPhoto} />
-
+          {/* Right Side: Professional Portrait with Minimal Floating Tech Cards & Glowing Connections */}
+          <div className="lg:col-span-5 flex justify-center">
+            <InstructorPhoto
+              photoUrl={instructorPhoto}
+              variant="hero"
+            />
           </div>
 
         </div>

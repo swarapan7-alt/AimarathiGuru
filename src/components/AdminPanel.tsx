@@ -168,50 +168,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
         {/* Top Minimal Admin Bar */}
-        <header className="h-16 bg-white border-b border-stone-200 px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-black text-slate-400 uppercase tracking-widest font-poppins">
+        <header className="h-12 bg-white border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-wider font-poppins">
               AI MARATHI GURU CONTROL PANEL
             </span>
-            <span className="hidden sm:inline text-slate-300">•</span>
-            <span className="hidden sm:inline text-xs font-bold text-slate-600 capitalize">
+            <span className="text-slate-300">•</span>
+            <span className="text-xs font-bold text-slate-700 capitalize">
               {currentTab}
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               onClick={loadAllAdminData}
               disabled={isLoading}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
               title="Refresh Data"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
             </button>
 
             {onClose && (
               <button
                 onClick={onClose}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer"
                 title="Return to Website"
               >
                 <span>Live Site</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3 h-3" />
               </button>
             )}
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer"
               title="Logout"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </header>
 
         {/* Dynamic Tab Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-[#FAF8F5]">
+        <main className="flex-1 p-3 sm:p-4 md:p-5 overflow-y-auto bg-[#FAF8F5]">
           {currentTab === 'dashboard' && (
             <AdminDashboardTab
               stats={stats}

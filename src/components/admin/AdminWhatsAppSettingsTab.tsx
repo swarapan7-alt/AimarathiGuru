@@ -179,17 +179,17 @@ export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> =
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-3.5 max-w-4xl">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-900 rounded-xl sm:rounded-2xl px-4 py-3 sm:py-3.5 text-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-2 font-poppins">
-            <MessageCircle className="w-3.5 h-3.5" /> Official WhatsApp Integration
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/10 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1 font-poppins">
+            <MessageCircle className="w-3 h-3" /> Official WhatsApp Integration
           </div>
-          <h1 className="text-xl sm:text-2xl font-black font-poppins">
+          <h1 className="text-base sm:text-lg font-black font-poppins">
             WhatsApp Settings & Pre-filled Messages
           </h1>
-          <p className="text-xs text-emerald-100 font-marathi-sub mt-1">
+          <p className="text-[11px] text-emerald-100 font-marathi-sub mt-0.5">
             अधिकृत WhatsApp Community लिंक, ॲडमिन नंबर आणि 'SEND VIA WHATSAPP APP' मेसेज टेम्पलेट
           </p>
         </div>
@@ -197,29 +197,29 @@ export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> =
         <button
           type="button"
           onClick={() => window.open(communityLink, '_blank')}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-emerald-800 hover:bg-emerald-50 text-xs font-bold transition shadow-sm cursor-pointer self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-emerald-800 hover:bg-emerald-50 text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto shrink-0"
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          <span>Test Community Link</span>
+          <span>Test Link</span>
         </button>
       </div>
 
       {saveSuccess && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>WhatsApp सेटिंग्ज व मेसेज टेम्पलेट यशस्वीरित्या सेव्ह झाले आहेत!</span>
           </div>
-          <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">SAVED</span>
+          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">SAVED</span>
         </div>
       )}
 
       {/* Main Settings Form */}
-      <form onSubmit={handleSave} className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-sm space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <form onSubmit={handleSave} className="bg-white p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-stone-200 shadow-xs space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {/* Community Link */}
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-black text-slate-800 block uppercase tracking-wider">
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
               WhatsApp Community Link (अधिकृत कम्युनिटी लिंक) *
             </label>
             <input
@@ -228,16 +228,16 @@ export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> =
               value={communityLink}
               onChange={(e) => setCommunityLink(e.target.value)}
               placeholder="https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO"
-              className="w-full px-4 py-3 text-xs bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-emerald-600 focus:bg-white font-mono"
+              className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[10px] text-slate-500">
               विद्यार्थी 'JOIN WHATSAPP COMMUNITY' बटणावर क्लिक केल्यावर या लिंकवर रीडायरेक्ट होतात.
             </p>
           </div>
 
           {/* Group Link */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black text-slate-800 block uppercase tracking-wider">
+          <div className="space-y-1">
+            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
               WhatsApp Group Link (बॅकअप ग्रुप लिंक)
             </label>
             <input
@@ -245,123 +245,121 @@ export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> =
               value={groupLink}
               onChange={(e) => setGroupLink(e.target.value)}
               placeholder="https://chat.whatsapp.com/..."
-              className="w-full px-4 py-3 text-xs bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-emerald-600 focus:bg-white font-mono"
+              className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
             />
           </div>
 
           {/* Admin WhatsApp Number */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black text-slate-800 block uppercase tracking-wider">
+          <div className="space-y-1">
+            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
               Admin WhatsApp Number (सपोर्ट नंबर) *
             </label>
             <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
               <input
                 type="text"
                 required
                 value={adminNumber}
                 onChange={(e) => setAdminNumber(e.target.value)}
                 placeholder="9801555171"
-                className="w-full pl-12 pr-4 py-3 text-xs bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-emerald-600 focus:bg-white font-mono font-bold text-slate-800"
+                className="w-full pl-10 pr-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
               />
             </div>
           </div>
+        </div>
 
-          {/* WhatsApp Pre-filled Message Template (SEND VIA WHATSAPP APP) */}
-          <div className="space-y-2 md:col-span-2 pt-2 border-t border-stone-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span>'SEND VIA WHATSAPP APP' Pre-filled Message Template *</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={copyPreview}
-                  className="text-[11px] text-emerald-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedPreview ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedPreview ? 'Copied Preview!' : 'Copy Preview'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Dynamic Variable Chips */}
-            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
-              <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Code className="w-3.5 h-3.5 text-blue-600" />
-                <span>उपलब्ध व्हेरिएबल्स (क्लिक करून मेसेजमध्ये जोडा):</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {availableVariables.map((v, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => insertVariable(v.code)}
-                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono text-[11px] font-bold transition cursor-pointer"
-                    title={v.desc}
-                  >
-                    + {v.code}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <textarea
-              rows={8}
-              required
-              value={prefilledMessageTemplate}
-              onChange={(e) => setPrefilledMessageTemplate(e.target.value)}
-              className="w-full p-4 text-xs font-mono bg-stone-50 border border-stone-300 rounded-2xl outline-none focus:border-emerald-600 focus:bg-white leading-relaxed text-slate-900"
-            />
-          </div>
-
-          {/* Success Message Text for Web UI */}
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-black text-slate-800 block uppercase tracking-wider">
-              Registration Success Text (वेबसाईटवर दिसणारा मेसेज)
+        {/* WhatsApp Pre-filled Message Template (SEND VIA WHATSAPP APP) */}
+        <div className="space-y-1.5 pt-2 border-t border-stone-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1">
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>'SEND VIA WHATSAPP APP' Pre-filled Message Template *</span>
             </label>
-            <textarea
-              rows={2}
-              required
-              value={customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              className="w-full px-4 py-2.5 text-xs bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-emerald-600 leading-relaxed"
-            />
+            <button
+              type="button"
+              onClick={copyPreview}
+              className="text-[10px] text-emerald-700 font-bold hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+            >
+              {copiedPreview ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedPreview ? 'Copied Preview!' : 'Copy Preview'}</span>
+            </button>
           </div>
+
+          {/* Dynamic Variable Chips */}
+          <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 space-y-1.5">
+            <div className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+              <Code className="w-3 h-3 text-blue-600" />
+              <span>उपलब्ध व्हेरिएबल्स (क्लिक करून मेसेजमध्ये जोडा):</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {availableVariables.map((v, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => insertVariable(v.code)}
+                  className="px-2 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-bold transition cursor-pointer"
+                  title={v.desc}
+                >
+                  + {v.code}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            rows={5}
+            required
+            value={prefilledMessageTemplate}
+            onChange={(e) => setPrefilledMessageTemplate(e.target.value)}
+            className="w-full p-2.5 text-xs font-mono bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white leading-relaxed text-slate-900"
+          />
+        </div>
+
+        {/* Success Message Text for Web UI */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
+            Registration Success Text (वेबसाईटवर दिसणारा मेसेज)
+          </label>
+          <textarea
+            rows={2}
+            required
+            value={customMessage}
+            onChange={(e) => setCustomMessage(e.target.value)}
+            className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 leading-relaxed"
+          />
         </div>
 
         {/* Live Message Preview */}
-        <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-3 shadow-inner">
-          <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Live Message Preview (विद्यार्थ्याला जाणारा संदेश)
+        <div className="p-3.5 rounded-xl bg-slate-900 text-white space-y-2 shadow-inner">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" /> Live Message Preview (विद्यार्थ्याला जाणारा संदेश)
             </span>
             <span className="text-emerald-400 font-mono">AUTOMATED WHATSAPP</span>
           </div>
 
-          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-emerald-400 font-mono text-xs whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+          <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-emerald-400 font-mono text-[11px] whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
             {getRenderedPreview()}
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-stone-200">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-stone-200">
           <button
             type="button"
             onClick={handleResetDefault}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-stone-300 text-slate-600 hover:bg-stone-100 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg border border-stone-300 text-slate-600 hover:bg-stone-100 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3 h-3" />
             <span>Reset to Default</span>
           </button>
 
           <button
             type="submit"
             disabled={isSaving}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-50 font-poppins"
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition shadow-xs cursor-pointer disabled:opacity-50 font-poppins"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
             <span>{isSaving ? 'Saving Changes...' : 'Save WhatsApp Settings'}</span>
           </button>
         </div>
