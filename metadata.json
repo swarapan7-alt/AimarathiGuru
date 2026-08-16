@@ -1,0 +1,6 @@
+{
+  "name": "AI Marathi Guru",
+  "description": "AI शिका. व्यवसाय वाढवा. भविष्य घडवा. Premium Marathi AI Course Landing Page with instant registration and automated payment flow.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

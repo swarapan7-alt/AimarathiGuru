@@ -1,0 +1,345 @@
+{
+  "admins": [
+    {
+      "id": "admin_1",
+      "username": "aimarathi",
+      "passwordHash": "adb0bd7025dadbc32b0fe23bb07af0251b40708af99115f3782cae51dfe4af05afa6739670a66d7c4257396f3d875bc81517c59c8489a5a225636d8d815d85d6",
+      "name": "Super Administrator",
+      "role": "SUPER_ADMIN",
+      "mustChangePassword": false,
+      "active": true,
+      "createdAt": "2026-08-16T08:59:51.331Z"
+    }
+  ],
+  "courseDates": [
+    {
+      "id": "cd_2026_08_16",
+      "date": "2026-08-16",
+      "displayDate": "Sunday, 16 August 2026",
+      "enabled": true,
+      "slot1": {
+        "id": "slot1",
+        "name": "Slot 1 (सकाळ)",
+        "startTime": "11:00 AM",
+        "endTime": "1:00 PM",
+        "capacity": 50,
+        "booked": 18,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot1-live"
+      },
+      "slot2": {
+        "id": "slot2",
+        "name": "Slot 2 (संध्याकाळ)",
+        "startTime": "7:00 PM",
+        "endTime": "9:00 PM",
+        "capacity": 50,
+        "booked": 32,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot2-live"
+      }
+    },
+    {
+      "id": "cd_2026_08_23",
+      "date": "2026-08-23",
+      "displayDate": "Sunday, 23 August 2026",
+      "enabled": true,
+      "slot1": {
+        "id": "slot1",
+        "name": "Slot 1 (सकाळ)",
+        "startTime": "11:00 AM",
+        "endTime": "1:00 PM",
+        "capacity": 50,
+        "booked": 6,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-aug23-slot1"
+      },
+      "slot2": {
+        "id": "slot2",
+        "name": "Slot 2 (संध्याकाळ)",
+        "startTime": "7:00 PM",
+        "endTime": "9:00 PM",
+        "capacity": 50,
+        "booked": 9,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-aug23-slot2"
+      }
+    }
+  ],
+  "students": [
+    {
+      "id": "AMG-2026-00001",
+      "fullName": "विकास चंद्रकांत पाटील",
+      "mobileNumber": "9876543210",
+      "whatsappNumber": "9876543210",
+      "email": "vikas.patil@example.com",
+      "district": "पुणे (Pune)",
+      "occupation": "CSC Operator",
+      "courseDateId": "cd_2026_08_16",
+      "courseDateDisplay": "Sunday, 16 August 2026",
+      "selectedSlot": "slot1",
+      "slotTimeDisplay": "11:00 AM – 1:00 PM",
+      "agreedToFee": true,
+      "registrationDate": "2026-08-16T08:59:51.331Z",
+      "paymentStatus": "PAID",
+      "paymentId": "pay_RZP819204128",
+      "amountPaid": 199,
+      "whatsappJoined": true,
+      "meetLink": "https://meet.google.com/amg-slot1-live"
+    },
+    {
+      "id": "AMG-2026-00002",
+      "fullName": "प्रिया रामेश्वर कुलकर्णी",
+      "mobileNumber": "9123456789",
+      "whatsappNumber": "9123456789",
+      "email": "priya.kulkarni@example.com",
+      "district": "छत्रपती संभाजीनगर",
+      "occupation": "Student",
+      "courseDateId": "cd_2026_08_16",
+      "courseDateDisplay": "Sunday, 16 August 2026",
+      "selectedSlot": "slot2",
+      "slotTimeDisplay": "7:00 PM – 9:00 PM",
+      "agreedToFee": true,
+      "registrationDate": "2026-08-16T08:59:51.331Z",
+      "paymentStatus": "PAID",
+      "paymentId": "pay_RZP981042711",
+      "amountPaid": 199,
+      "whatsappJoined": false,
+      "meetLink": "https://meet.google.com/amg-slot2-live"
+    }
+  ],
+  "paymentSettings": {
+    "courseFee": 199,
+    "originalFee": 999,
+    "razorpayPaymentLink": "https://rzp.io/l/ai-marathi-guru",
+    "paymentMode": "both",
+    "razorpayKeyId": "rzp_test_TNJSYVd2RrMPLA"
+  },
+  "whatsappSettings": {
+    "communityLink": "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+    "groupLink": "https://chat.whatsapp.com/H1L98amgAIBatchGroupLink2026",
+    "adminWhatsAppNumber": "9801555171",
+    "customSuccessMessage": "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
+    "buttonText": "JOIN WHATSAPP COMMUNITY"
+  },
+  "communicationSettings": {
+    "businessNumber": "9801555171",
+    "communityLink": "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+    "groupLink": "https://chat.whatsapp.com/H1L98amgAIBatchGroupLink2026",
+    "adminWhatsAppNumber": "9801555171",
+    "customSuccessMessage": "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
+    "buttonText": "JOIN WHATSAPP COMMUNITY",
+    "supportLink": "https://wa.me/919801555171",
+    "templates": {
+      "registrationSuccess": "नमस्कार {student_name} 👋\n\nAI Marathi Guru मध्ये तुमची नोंदणी प्राप्त झाली आहे. 📝\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n💰 Status: {payment_status}\n\nपुढील सूचनांसाठी WhatsApp Community शी कनेक्ट राहा:\n{whatsapp_link}",
+      "paymentPending": "नमस्कार {student_name} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रोसेस सुरू झाली आहे. कृपया खालील लिंकवरून ₹{course_fee} पेमेंट पूर्ण करा:\n{payment_link}\n\nपेमेंट झाल्यावर तात्काळ WhatsApp Community ॲक्सेस मिळेल.",
+      "paymentSuccess": "नमस्कार {STUDENT_NAME} 👋\n\nAI Marathi Guru मध्ये तुमची Registration Successful झाली आहे. 🎉\n\nRegistration ID: {REGISTRATION_ID}\nCourse Date: {COURSE_DATE}\nSlot: {SLOT_TIME}\nCourse Fee: ₹199\n\nWhatsApp Community मध्ये Join होण्यासाठी खालील link वर click करा:\n{WHATSAPP_COMMUNITY_LINK}\n\nGoogle Meet Link: {GOOGLE_MEET_LINK}\n\nधन्यवाद!\nAI Marathi Guru\nhttps://aimarathi.swaraudyog.com",
+      "whatsappJoin": "नमस्कार {student_name} 👋\n\nAI Marathi Guru बॅचमध्ये स्वागत आहे! सर्व क्लास अपडेट्स, Google Meet लिंक व स्टडी मटेरियल मिळवण्यासाठी त्वरित खालील Official Community Join करा:\n{whatsapp_link}",
+      "courseReminder": "नमस्कार {student_name} 👋\n\nआज तुमचे AI Marathi Guru Live Training आहे.\n\n📅 तारीख: {course_date}\n⏰ वेळ: {course_slot}\n\nकृपया क्लास वेळेच्या १० मिनिटे आधी तयार राहा. भेटूया लाईव्ह सेशन्समध्ये! 🚀",
+      "liveSessionMessage": "नमस्कार {student_name} 👋\n\nतुमचा AI Marathi Guru Live Class सुरू होत आहे!\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n🔗 Google Meet Link: {meet_link}\n\nकृपया त्वरित जॉईन व्हा.",
+      "reminder24h": "नमस्कार {STUDENT_NAME} 👋\n\nउद्या तुमचा AI Marathi Guru Live Training क्लास आहे.\nतारीख: {COURSE_DATE}\nवेळ: {SLOT_TIME}\n\nGoogle Meet Link: {GOOGLE_MEET_LINK}\n\nवेळेवर उपस्थित राहा.",
+      "reminder2h": "नमस्कार {STUDENT_NAME} 👋\n\nतुमचा AI Marathi Guru session आज पुढील २ तासांत ({SLOT_TIME}) सुरू होत आहे.\n\nGoogle Meet Link: {GOOGLE_MEET_LINK}\n\nतयार राहा!",
+      "registration": "नमस्कार {STUDENT_NAME},\nAI Marathi Guru कोर्समध्ये नोंदणी केल्याबद्दल धन्यवाद.\nRegistration ID: {REGISTRATION_ID}"
+    }
+  },
+  "liveSessionSettings": {
+    "googleMeetLink": "https://meet.google.com/amg-live-session",
+    "instructions": "कृपया क्लासच्या १० मिनिटे आधी लॅपटॉप किंवा मोबाईलवर Google Meet लिंक ओपन करा. हेडफोन वापरल्यास आवाज अधिक स्पष्ट ऐकू येईल.",
+    "sessionAccessMessage": "Live session लिंक फक्त नोंदणीकृत विद्यार्थ्यांना उपलब्ध आहे."
+  },
+  "siteSettings": {
+    "courseName": "AI Marathi Guru",
+    "courseFee": 199,
+    "oldPrice": 999,
+    "heroHeading": "आता AI मराठीत शिका!",
+    "heroSubtitle": "AI शिका. व्यवसाय वाढवा. भविष्य घडवा.",
+    "contactNumber": "9801555171",
+    "contactEmail": "contact@swaraudyog.com",
+    "ctaText": "₹199 मध्ये आजच Register करा",
+    "websiteUrl": "https://aimarathi.swaraudyog.com",
+    "instagramLink": "https://instagram.com/aimarathiguru",
+    "youtubeLink": "https://youtube.com/aimarathiguru",
+    "instructorName": "मा. मार्गदर्शक / Lead Instructor",
+    "instructorTitle": "AI Marathi Master Trainer & Tech Educator",
+    "instructorBio": "८,०००+ मराठी विद्यार्थ्यांना आणि व्यावसायिकांना AI तंत्रज्ञानाचे सोप्या भाषेत प्रशिक्षण दिलेले तज्ज्ञ मार्गदर्शक.",
+    "instructorPhoto": "",
+    "courseScreenshots": [
+      {
+        "id": "scr_1",
+        "title": "ChatGPT Marathi Prompting",
+        "imageUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop",
+        "description": "मराठीत योग्य प्रॉम्ट लिहून १ मिनिटात व्यावसायिक ई-मेल व अर्ज तयार करणे"
+      },
+      {
+        "id": "scr_2",
+        "title": "Google Gemini & Jio AI Live Analysis",
+        "imageUrl": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop",
+        "description": "भारतीय भाषांमधील AI सहाय्यक व डॉक्युमेंट अ‍ॅनालिसिस"
+      },
+      {
+        "id": "scr_3",
+        "title": "AI Poster & Festival Graphics",
+        "imageUrl": "https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=800&auto=format&fit=crop",
+        "description": "मोबाईलवरून १ मिनिटात सण-उत्सव व दुकानाचे HD जाहिरात पोस्टर"
+      },
+      {
+        "id": "scr_4",
+        "title": "AI Video & Avatar Reels",
+        "imageUrl": "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800&auto=format&fit=crop",
+        "description": "चेहरा न दाखवता व्हॉईसओव्हरसह रील व व्हिडिओ निर्मिती"
+      }
+    ],
+    "modules": [
+      {
+        "id": 1,
+        "title": "ChatGPT & Prompt Engineering",
+        "titleEn": "ChatGPT AI Basics",
+        "iconName": "MessageSquareText",
+        "topics": [
+          "ChatGPT अकाउंट सेटअप",
+          "मराठीत योग्य प्रॉम्ट्स लिहिणे",
+          "कंटेंट आणि ईमेल रायटिंग",
+          "कल्पना आणि बिझनेस प्लॅनिंग"
+        ],
+        "gradient": "from-amber-500 to-red-600"
+      },
+      {
+        "id": 2,
+        "title": "Google Gemini Masterclass",
+        "titleEn": "Google Gemini",
+        "iconName": "Sparkles",
+        "topics": [
+          "Gemini Live AI चा वापर",
+          "Google Workspace सोबत एकत्रीकरण",
+          "डॉक्युमेंट आणि माहितीचे विश्लेषण",
+          "स्मार्ट रिसर्च टिप्स"
+        ],
+        "gradient": "from-blue-600 to-indigo-600"
+      },
+      {
+        "id": 3,
+        "title": "Jio AI & Smartphone Power",
+        "titleEn": "Jio AI Tools",
+        "iconName": "Smartphone",
+        "topics": [
+          "मोबाईलवर AI चा वापर",
+          "मराठी व्हॉईस कमांड्स",
+          "दैनंदिन कामात AI ची मदत",
+          "सुलभ वापराच्या युक्त्या"
+        ],
+        "gradient": "from-emerald-600 to-teal-600"
+      },
+      {
+        "id": 4,
+        "title": "Instagram & Social Growth",
+        "titleEn": "Instagram Growth",
+        "iconName": "Instagram",
+        "topics": [
+          "इन्स्टाग्राम अकाउंट सेटअप",
+          "AI द्वारे व्हायरल रील कल्पना",
+          "कॅप्शन व हॅशटॅग निर्मिती",
+          "फॉलोअर्स कसे वाढवायचे"
+        ],
+        "gradient": "from-pink-600 to-rose-600"
+      },
+      {
+        "id": 5,
+        "title": "AI Poster & Graphics Design",
+        "titleEn": "AI Poster Design",
+        "iconName": "Palette",
+        "topics": [
+          "कॅनव्हा आणि AI पोस्टर्स",
+          "सोशल मीडिया बॅनर डिझाईन",
+          "व्यवसाय जाहिरात पोस्टर्स",
+          "मराठी फॉन्ट आणि लेआउट्स"
+        ],
+        "gradient": "from-purple-600 to-indigo-600"
+      },
+      {
+        "id": 6,
+        "title": "AI Video Creation & Voiceover",
+        "titleEn": "AI Video Creation",
+        "iconName": "Video",
+        "topics": [
+          "AI व्हॉईसओव्हर निर्मिती",
+          "व्हिडिओ स्क्रिप्टिंग आणि जनरेशन",
+          "बिना चेहऱ्याचे युट्यूब/रील व्हिडिओ",
+          "व्हिडिओ एडिट टिप्स"
+        ],
+        "gradient": "from-[#E53935] to-amber-600"
+      },
+      {
+        "id": 7,
+        "title": "AI for Business Growth",
+        "titleEn": "AI for Business",
+        "iconName": "Briefcase",
+        "topics": [
+          "व्यवसाय ऑटोमेशन",
+          "ग्राहक संवाद आणि WhatsApp",
+          "मार्केटिंग कंटेंट जनरेशन",
+          "वेळ आणि पैशाची बचत"
+        ],
+        "gradient": "from-teal-600 to-emerald-700"
+      },
+      {
+        "id": 8,
+        "title": "Practical AI Tools & Automation",
+        "titleEn": "Practical AI Tools",
+        "iconName": "Zap",
+        "topics": [
+          "Top 10 मोफत AI टूल्स",
+          "PDF व डेटा समरी टूल्स",
+          "फोटो एनहान्समेंट टूल्स",
+          "भविष्यातील AI संधी"
+        ],
+        "gradient": "from-orange-500 to-red-600"
+      }
+    ],
+    "faqs": [
+      {
+        "question": "हा कोर्स कोणासाठी उपयुक्त आहे?",
+        "answer": "हा कोर्स विद्यार्थी, व्यावसायिक, शेतकरी, शिक्षक, फ्रीलान्सर, महा-ई-सेवा चालक, गृहिणी आणि AI शिकू इच्छिणाऱ्या सर्वांसाठी अत्यंत सोप्या मराठीत बनवला आहे."
+      },
+      {
+        "question": "मला कॉम्प्युटर किंवा इंग्रजीचे ज्ञान नसल्यास मी शिकू शकतो का?",
+        "answer": "होय! १००% शिकू शकता. हा कोर्स सोप्या मराठी भाषेत मोबाईल आणि कॉम्प्युटर दोन्हीसाठी उपयुक्त प्रात्यक्षिकासह शिकवला जाईल."
+      },
+      {
+        "question": "क्लास कसा होईल आणि वेळ काय आहे?",
+        "answer": "क्लास Google Meet वर ऑनलाईन थेट (Live) होईल. तुम्ही सकाळी ११:०० ते १:०० किंवा संध्याकाळी ७:०० ते ९:०० पैकी कोणताही १ स्लॉट निवडू शकता."
+      },
+      {
+        "question": "फी भरल्यानंतर व्हॉट्सॲप ग्रुप किंवा क्लास लिंक कशी मिळेल?",
+        "answer": "पेमेंट यशस्वी होताच तुम्हाला स्क्रीनवर आणि व्हॉट्सॲपवर त्वरित Registration ID आणि Official WhatsApp Community लिंक मिळेल."
+      },
+      {
+        "question": "कोर्स पूर्ण झाल्यावर प्रमाणपत्र (Certificate) मिळेल का?",
+        "answer": "होय! लाइव्ह सेशन पूर्ण केल्यानंतर तुम्हाला AI Marathi Guru कडून डिजिटल E-Certificate दिले जाईल."
+      }
+    ]
+  },
+  "auditLogs": [
+    {
+      "id": "log_1786874208140_447",
+      "timestamp": "2026-08-16T09:56:48.140Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1786874204206_739",
+      "timestamp": "2026-08-16T09:56:44.206Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1",
+      "timestamp": "2026-08-16T08:59:51.331Z",
+      "adminUsername": "system",
+      "action": "SYSTEM_BOOT",
+      "details": "Initial database created and loaded."
+    }
+  ]
+}
