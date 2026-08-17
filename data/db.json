@@ -312,6 +312,30 @@
   },
   "auditLogs": [
     {
+      "id": "log_1786986943192_426",
+      "timestamp": "2026-08-17T17:15:43.192Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1786986940737_476",
+      "timestamp": "2026-08-17T17:15:40.737Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1786986935431_71",
+      "timestamp": "2026-08-17T17:15:35.431Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
       "id": "log_1786880424153_772",
       "timestamp": "2026-08-16T11:40:24.153Z",
       "adminUsername": "admin",

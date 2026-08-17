@@ -8,7 +8,7 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onClose }) => {
-  const [username, setUsername] = useState('aimarathi');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +23,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onClose 
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password: password.trim() }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await res.json();
@@ -32,11 +32,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onClose 
         localStorage.setItem('amg_admin_token', data.token);
         onLoginSuccess(data.token, data.admin);
       } else {
-        setErrorMessage(data.error || 'अवैध Username किंवा Password. कृपया पुन्हा तपासा.');
+        setErrorMessage(data.error || 'Invalid username or password (चुकीचे Username किंवा Password).');
       }
     } catch (err) {
-      console.error('Login request failed:', err);
-      setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया इंटरनेट कनेक्शन तपासा.');
+      setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया इंटरनेट किंवा सर्व्हर कनेक्शन तपासा.');
     } finally {
       setIsLoading(false);
     }
