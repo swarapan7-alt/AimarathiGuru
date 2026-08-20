@@ -1520,7 +1520,41 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   });
 });
 
-// 17.1 Dedicated Instructor Photo Upload Endpoint
+// 17.1 Dedicated Instructor Photo Direct Stream Endpoint
+app.get('/api/instructor-photo', (req, res) => {
+  const photo = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || '';
+  if (photo && photo.startsWith('data:image/')) {
+    const matches = photo.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (matches && matches[2]) {
+      const mime = matches[1] === 'jpeg' ? 'image/jpeg' : matches[1] === 'webp' ? 'image/webp' : 'image/png';
+      const imgBuffer = Buffer.from(matches[2], 'base64');
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(imgBuffer);
+    }
+  }
+  
+  // Check static file paths
+  const possiblePaths = [
+    path.join(PUBLIC_DIR, 'pankaj-photo.png'),
+    path.join(UPLOADS_DIR, 'instructor-photo.png'),
+    path.join(DATA_DIR, 'uploads', 'instructor-photo.png'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return res.sendFile(p);
+    }
+  }
+
+  // If photo is an external URL, redirect
+  if (photo && (photo.startsWith('http://') || photo.startsWith('https://'))) {
+    return res.redirect(photo);
+  }
+
+  return res.status(404).send('No instructor photo configured');
+});
+
+// 17.2 Dedicated Instructor Photo Upload Endpoint
 app.post('/api/admin/upload-instructor-photo', authenticateAdmin, (req, res) => {
   const { imageBase64, photoUrl, instructor_photo_url, instructorPhoto } = req.body;
   const imageInput = imageBase64 || instructor_photo_url || photoUrl || instructorPhoto;
@@ -1532,12 +1566,15 @@ app.post('/api/admin/upload-instructor-photo', authenticateAdmin, (req, res) => 
   try {
     if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
     if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    const dataUploads = path.join(DATA_DIR, 'uploads');
+    if (!fs.existsSync(dataUploads)) fs.mkdirSync(dataUploads, { recursive: true });
 
     if (typeof imageInput === 'string' && imageInput.startsWith('data:image/')) {
       const base64Data = imageInput.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
       fs.writeFileSync(path.join(PUBLIC_DIR, 'pankaj-photo.png'), buffer);
       fs.writeFileSync(path.join(UPLOADS_DIR, 'instructor-photo.png'), buffer);
+      fs.writeFileSync(path.join(dataUploads, 'instructor-photo.png'), buffer);
       
       db.siteSettings.instructor_photo_url = imageInput;
       db.siteSettings.instructorPhoto = imageInput;
@@ -1563,6 +1600,37 @@ app.post('/api/admin/upload-instructor-photo', authenticateAdmin, (req, res) => 
   } catch (err: any) {
     console.error('Error uploading photo:', err);
     return res.status(500).json({ error: 'फोटो सेव्ह करताना त्रुटी आली.' });
+  }
+});
+
+// 17.3 Dedicated Instructor Photo Remove Endpoint
+app.post('/api/admin/remove-instructor-photo', authenticateAdmin, (req, res) => {
+  try {
+    db.siteSettings.instructor_photo_url = '';
+    db.siteSettings.instructorPhoto = '';
+    db.siteSettings.instructorPhotoUrl = '';
+    
+    // Clear files if existing
+    try {
+      const p1 = path.join(PUBLIC_DIR, 'pankaj-photo.png');
+      const p2 = path.join(UPLOADS_DIR, 'instructor-photo.png');
+      if (fs.existsSync(p1)) fs.unlinkSync(p1);
+      if (fs.existsSync(p2)) fs.unlinkSync(p2);
+    } catch (_) {}
+
+    saveDB(db);
+    addAuditLog((req as any).admin.username, 'REMOVE_INSTRUCTOR_PHOTO', 'Removed official instructor photo.');
+
+    return res.json({
+      success: true,
+      message: 'मार्गदर्शकांचा फोटो काढून टाकला आहे.',
+      photoUrl: '',
+      instructor_photo_url: '',
+      siteSettings: db.siteSettings,
+    });
+  } catch (err: any) {
+    console.error('Error removing photo:', err);
+    return res.status(500).json({ error: 'फोटो काढताना एरर आला.' });
   }
 });
 

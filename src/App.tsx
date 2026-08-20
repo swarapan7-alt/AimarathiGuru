@@ -34,10 +34,22 @@ export default function App() {
   const [paymentLink, setPaymentLink] = useState('https://rzp.io/l/ai-marathi-guru');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Dynamic Content loaded from backend
+  // Dynamic Content loaded from backend with persistent instant local storage cache
   const [courseDates, setCourseDates] = useState<CourseDateRecord[]>([]);
   const [courseFee, setCourseFee] = useState(199);
-  const [siteSettings, setSiteSettings] = useState<Partial<SiteSettings>>({});
+  const [siteSettings, setSiteSettings] = useState<Partial<SiteSettings>>(() => {
+    try {
+      const cached = localStorage.getItem('amg_cached_site_settings');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    return {
+      instructorName: 'श्री. पंकज वाघमारे',
+      instructorNameEn: 'Mr. Pankaj Waghmare',
+      instructorTitle: 'Founder & CEO, AI Marathi Guru',
+      instructorPhoto: '/pankaj-photo.png',
+      instructor_photo_url: '/pankaj-photo.png',
+    };
+  });
   const [paymentSettings, setPaymentSettings] = useState<Partial<PaymentSettings>>({});
   const [whatsappSettings, setWhatsappSettings] = useState<Partial<WhatsAppSettings>>({});
 
@@ -106,6 +118,9 @@ export default function App() {
         if (data.courseDates) setCourseDates(data.courseDates);
         if (data.siteSettings) {
           setSiteSettings(data.siteSettings);
+          try {
+            localStorage.setItem('amg_cached_site_settings', JSON.stringify(data.siteSettings));
+          } catch (_) {}
           if (data.siteSettings.courseFee) setCourseFee(data.siteSettings.courseFee);
         }
         if (data.paymentSettings) {
