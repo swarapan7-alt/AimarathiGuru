@@ -1,20 +1,17 @@
+const hostPort = process.env.PORT;
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = Number(hostPort || process.env.PORT || 3000);
 
-// Resolve Root & Directories
+// Resolve Root & Directories using process.cwd()
 const ROOT_DIR = process.cwd();
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
@@ -1444,13 +1441,11 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   if (resolvedPhoto !== undefined && resolvedPhoto !== null) {
     if (typeof resolvedPhoto === 'string' && resolvedPhoto.startsWith('data:image/')) {
       try {
-        const publicDir = path.join(__dirname, 'public');
-        const uploadsDir = path.join(publicDir, 'uploads');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
         const base64Data = resolvedPhoto.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
-        fs.writeFileSync(path.join(publicDir, 'pankaj-photo.png'), buffer);
-        fs.writeFileSync(path.join(uploadsDir, 'instructor-photo.png'), buffer);
+        fs.writeFileSync(path.join(PUBLIC_DIR, 'pankaj-photo.png'), buffer);
+        fs.writeFileSync(path.join(UPLOADS_DIR, 'instructor-photo.png'), buffer);
       } catch (err) {
         console.error('Failed to write photo to disk:', err);
       }

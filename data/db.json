@@ -312,6 +312,22 @@
   },
   "auditLogs": [
     {
+      "id": "log_1786988554630_141",
+      "timestamp": "2026-08-17T17:42:34.630Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1786987013234_328",
+      "timestamp": "2026-08-17T17:16:53.234Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
       "id": "log_1786986943192_426",
       "timestamp": "2026-08-17T17:15:43.192Z",
       "adminUsername": "admin",
