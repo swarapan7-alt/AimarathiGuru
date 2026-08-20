@@ -1,4 +1,3 @@
-const hostPort = process.env.PORT;
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import express from 'express';
@@ -9,7 +8,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
 const app = express();
-const PORT = Number(hostPort || process.env.PORT || 3000);
+const port = Number(process.env.PORT) || 3000;
 
 // Resolve Root & Directories using process.cwd()
 const ROOT_DIR = process.cwd();
@@ -1672,23 +1671,36 @@ User question: ${prompt}`,
 
 // Start Server with Vite Middleware
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const distIndexHtml = path.join(distPath, 'index.html');
+  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(distIndexHtml);
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(distIndexHtml);
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+  const port = Number(process.env.PORT) || 3000;
+
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on port ${port}`);
   });
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('Server Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Server Unhandled Rejection:', reason);
+});
 
 startServer();
