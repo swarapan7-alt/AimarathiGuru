@@ -131,29 +131,69 @@ export default function App() {
   };
 
   // Called when user submits registration form
-  const handleFormSubmit = (data: RegistrationFormData) => {
+  const handleFormSubmit = async (data: RegistrationFormData) => {
+    setIsLoading(true);
     setPendingFormData(data);
-    setShowPaymentModal(true);
+
+    try {
+      // 1. Save pending registration record to database
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          paymentStatus: 'PENDING',
+          paymentId: 'PENDING_PAYMENT',
+          amountPaid: courseFee,
+        }),
+      });
+
+      const resData = await response.json();
+
+      if (response.ok && resData.registration) {
+        setCurrentRegistration(resData.registration);
+        setWhatsappMessage(resData.whatsappMessage || '');
+        if (resData.paymentLink) setPaymentLink(resData.paymentLink);
+        if (resData.communityLink) setCommunityLink(resData.communityLink);
+
+        // 2. Open official Razorpay hosted link
+        const targetLink = resData.paymentLink || paymentLink || 'https://rzp.io/rzp/gAmUJOS0';
+        try {
+          window.open(targetLink, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+          // Fallback handled in modal
+        }
+
+        // 3. Open Payment Modal
+        setShowPaymentModal(true);
+      } else {
+        alert(resData.error || 'नोंदणी प्रक्रियेत अडचण आली. कृपया पुन्हा प्रयत्न करा.');
+      }
+    } catch (err) {
+      console.error('Registration submit error:', err);
+      // Still show payment modal as fallback
+      setShowPaymentModal(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Called when payment succeeds
+  // Called when payment succeeds / verified
   const handlePaymentSuccess = async (paymentId: string) => {
-    if (!pendingFormData) return;
-
     setShowPaymentModal(false);
     setIsLoading(true);
 
     try {
-      const payload = {
-        ...pendingFormData,
-        paymentId,
-        amountPaid: courseFee,
-      };
-
-      const response = await fetch('/api/register', {
+      const regId = currentRegistration?.id;
+      const response = await fetch('/api/confirm-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          studentId: regId,
+          registrationId: regId,
+          mobileNumber: pendingFormData?.mobileNumber || currentRegistration?.mobileNumber,
+          paymentId,
+        }),
       });
 
       const data = await response.json();
@@ -166,10 +206,10 @@ export default function App() {
         // Refresh available seats
         fetchContent();
       } else {
-        alert(data.error || 'नोंदणी प्रक्रियेत अडचण आली. कृपया पुन्हा प्रयत्न करा.');
+        alert(data.error || 'नोंदणी कन्फर्मेशन मध्ये अडचण आली. कृपया पुन्हा प्रयत्न करा.');
       }
     } catch (err) {
-      console.error('Registration server submit error:', err);
+      console.error('Payment confirmation error:', err);
       alert('सर्व्हरशी संपर्क होऊ शकला नाही.');
     } finally {
       setIsLoading(false);

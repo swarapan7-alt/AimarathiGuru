@@ -2,8 +2,8 @@
   "admins": [
     {
       "id": "admin_1",
-      "username": "admin",
-      "passwordHash": "adb0bd7025dadbc32b0fe23bb07af0251b40708af99115f3782cae51dfe4af05afa6739670a66d7c4257396f3d875bc81517c59c8489a5a225636d8d815d85d6",
+      "username": "aimarathi",
+      "passwordHash": "14ca89efc5e3938ff34ac4256074326fbe8c6c99af768fe69c56e120bf6cf02633755e75f7199127fec03b6798f21a14b357924affcd0fdb31dce6ffb3479a79",
       "name": "Super Administrator",
       "role": "SUPER_ADMIN",
       "mustChangePassword": false,
@@ -152,7 +152,7 @@
     "templates": {
       "registrationSuccess": "नमस्कार {student_name} 👋\n\nAI Marathi Guru मध्ये तुमची नोंदणी प्राप्त झाली आहे. 📝\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n💰 Status: {payment_status}\n\nपुढील सूचनांसाठी WhatsApp Community शी कनेक्ट राहा:\n{whatsapp_link}",
       "paymentPending": "नमस्कार {student_name} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रोसेस सुरू झाली आहे. कृपया खालील लिंकवरून ₹{course_fee} पेमेंट पूर्ण करा:\n{payment_link}\n\nपेमेंट झाल्यावर तात्काळ WhatsApp Community ॲक्सेस मिळेल.",
-      "paymentSuccess": "नमस्कार {STUDENT_NAME} 👋\n\nAI Marathi Guru मध्ये तुमची Registration Successful झाली आहे. 🎉\n\nRegistration ID: {REGISTRATION_ID}\nCourse Date: {COURSE_DATE}\nSlot: {SLOT_TIME}\nCourse Fee: ₹199\n\nWhatsApp Community मध्ये Join होण्यासाठी खालील link वर click करा:\n{WHATSAPP_COMMUNITY_LINK}\n\nGoogle Meet Link: {GOOGLE_MEET_LINK}\n\nधन्यवाद!\nAI Marathi Guru\nhttps://aimarathi.swaraudyog.com",
+      "paymentSuccess": "नमस्कार {Student Name} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: {Registration ID}\nCourse Date: {Course Date}\nTime Slot: {Selected Slot}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक WhatsApp Community मधून दिली जाईल.\n\nधन्यवाद,\nAI Marathi Guru",
       "whatsappJoin": "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
       "courseReminder": "नमस्कार {student_name} 👋\n\nआज तुमचे AI Marathi Guru Live Training आहे.\n\n📅 तारीख: {course_date}\n⏰ वेळ: {course_slot}\n\nकृपया क्लास वेळेच्या १० मिनिटे आधी तयार राहा. भेटूया लाईव्ह सेशन्समध्ये! 🚀",
       "liveSessionMessage": "नमस्कार {student_name} 👋\n\nतुमचा AI Marathi Guru Live Class सुरू होत आहे!\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n🔗 Google Meet Link: {meet_link}\n\nकृपया त्वरित जॉईन व्हा.",
@@ -311,6 +311,30 @@
     ]
   },
   "auditLogs": [
+    {
+      "id": "log_1787249804598_599",
+      "timestamp": "2026-08-20T18:16:44.598Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1787249792184_471",
+      "timestamp": "2026-08-20T18:16:32.184Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1787249230283_58",
+      "timestamp": "2026-08-20T18:07:10.283Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
     {
       "id": "log_1786988554630_141",
       "timestamp": "2026-08-17T17:42:34.630Z",

@@ -46,12 +46,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const defaultFormattedMsg = `नमस्कार ${registration.fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${registration.id}\nCourse Date: ${registration.courseDateDisplay}\nTime Slot: ${registration.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक WhatsApp Community मधून दिली जाईल.\n\nधन्यवाद,\nAI Marathi Guru`;
+  const effectiveWhatsAppMsg = whatsappMessage || defaultFormattedMsg;
+
   const handleWhatsAppRedirect = () => {
     window.open(communityLink, '_blank');
   };
 
   const handleDirectWhatsAppMsg = () => {
-    const encoded = encodeURIComponent(whatsappMessage);
+    const encoded = encodeURIComponent(effectiveWhatsAppMsg);
     window.open(`https://wa.me/91${registration.whatsappNumber}?text=${encoded}`, '_blank');
   };
 
@@ -175,7 +178,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             </button>
 
             <div className="p-3.5 rounded-2xl bg-slate-900 text-emerald-400 font-mono text-xs whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner max-h-36 overflow-y-auto">
-              {whatsappMessage}
+              {effectiveWhatsAppMsg}
             </div>
           </div>
 

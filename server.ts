@@ -37,24 +37,30 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // Password Hashing Utility & Admin Auth Config
 const AUTH_SECRET = process.env.AUTH_SALT || 'AMG_SECURE_AUTH_SESSION_KEY_2026';
 
+let db: DBStructure | null = null;
+
 function hashPassword(password: string): string {
   return crypto.pbkdf2Sync(password, AUTH_SECRET, 1000, 64, 'sha512').toString('hex');
 }
 
 // Configurable Admin Credentials:
-// In production deployment, environment variables ADMIN_USERNAME & ADMIN_PASSWORD override the defaults.
-// In local / AI Studio preview environment where custom env vars are not set, uses dev credentials (admin / Password123).
+// Priority 1: Environment Variables (ADMIN_USERNAME & ADMIN_PASSWORD)
+// Priority 2: Database Hashed Admin Record (db.admins)
+// Default Username: aimarathi
 function getAdminCredentials() {
   const envUser = process.env.ADMIN_USERNAME ? process.env.ADMIN_USERNAME.trim() : '';
   const envPass = process.env.ADMIN_PASSWORD ? process.env.ADMIN_PASSWORD.trim() : '';
 
-  const username = envUser || 'admin';
-  const password = envPass || 'Password123';
+  const dbUser = db?.admins?.[0]?.username || '';
+  const username = envUser || dbUser || 'aimarathi';
+  const password = envPass;
+  const hasDbPassword = Boolean(db?.admins?.[0]?.passwordHash);
 
   return {
     username,
     password,
-    isConfigured: true,
+    isEnvConfigured: Boolean(envPass),
+    isConfigured: Boolean(envPass) || hasDbPassword,
   };
 }
 
@@ -312,21 +318,19 @@ function loadDB(): DBStructure {
     }
   }
 
-  const { username: envUser, isConfigured } = getAdminCredentials();
-  const initialAdmins = isConfigured
-    ? [
-        {
-          id: 'admin_1',
-          username: envUser,
-          passwordHash: '',
-          name: 'Super Administrator',
-          role: 'SUPER_ADMIN',
-          mustChangePassword: false,
-          active: true,
-          createdAt: new Date().toISOString(),
-        },
-      ]
-    : [];
+  const { username: envUser } = getAdminCredentials();
+  const initialAdmins = [
+    {
+      id: 'admin_1',
+      username: envUser || 'aimarathi',
+      passwordHash: '',
+      name: 'Super Administrator',
+      role: 'SUPER_ADMIN',
+      mustChangePassword: false,
+      active: true,
+      createdAt: new Date().toISOString(),
+    },
+  ];
 
   const defaultTemplates = {
     registrationSuccess: `नमस्कार {student_name} 👋\n\nAI Marathi Guru मध्ये तुमची नोंदणी प्राप्त झाली आहे. 📝\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n💰 Status: {payment_status}\n\nपुढील सूचनांसाठी WhatsApp Community शी कनेक्ट राहा:\n{whatsapp_link}`,
@@ -541,7 +545,7 @@ function saveDB(data: DBStructure) {
 }
 
 // Global in-memory DB reference
-const db = loadDB();
+db = loadDB();
 
 // Log Audit Trail
 function addAuditLog(adminUsername: string, action: string, details: string, ip?: string) {
@@ -566,17 +570,23 @@ function formatMessageTemplate(template: string, student: any, extra?: Record<st
   let msg = template;
   msg = msg.replace(/{student_name}/gi, student.fullName || student.name || '');
   msg = msg.replace(/{STUDENT_NAME}/g, student.fullName || student.name || '');
+  msg = msg.replace(/{Student Name}/g, student.fullName || student.name || '');
   msg = msg.replace(/{course_date}/gi, student.courseDateDisplay || '');
   msg = msg.replace(/{COURSE_DATE}/g, student.courseDateDisplay || '');
+  msg = msg.replace(/{Course Date}/g, student.courseDateDisplay || '');
   msg = msg.replace(/{course_slot}/gi, student.slotTimeDisplay || '');
   msg = msg.replace(/{SLOT_TIME}/g, student.slotTimeDisplay || '');
+  msg = msg.replace(/{Selected Slot}/g, student.slotTimeDisplay || '');
+  msg = msg.replace(/{Time Slot}/g, student.slotTimeDisplay || '');
   msg = msg.replace(/{payment_status}/gi, student.paymentStatus || 'PENDING');
+  msg = msg.replace(/{Payment Status}/g, student.paymentStatus || 'PENDING');
   msg = msg.replace(/{course_fee}/gi, String(student.amountPaid || db.paymentSettings.courseFee || 199));
   msg = msg.replace(/{whatsapp_link}/gi, db.whatsappSettings.communityLink || db.communicationSettings.communityLink);
   msg = msg.replace(/{WHATSAPP_COMMUNITY_LINK}/g, db.whatsappSettings.communityLink || db.communicationSettings.communityLink);
-  msg = msg.replace(/{payment_link}/gi, db.paymentSettings.razorpayPaymentLink);
+  msg = msg.replace(/{payment_link}/gi, db.paymentSettings.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0');
   msg = msg.replace(/{registration_id}/gi, student.id || '');
   msg = msg.replace(/{REGISTRATION_ID}/g, student.id || '');
+  msg = msg.replace(/{Registration ID}/g, student.id || '');
   msg = msg.replace(/{meet_link}/gi, student.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session');
   msg = msg.replace(/{GOOGLE_MEET_LINK}/g, student.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session');
 
@@ -638,25 +648,19 @@ function authenticateAdmin(req: express.Request, res: express.Response, next: ex
     return res.status(401).json({ error: 'अनधिकृत! Admin लॉगिन आवश्यक आहे (Unauthorized: Admin login required).' });
   }
 
-  const { username: envUser, isConfigured } = getAdminCredentials();
-  if (!isConfigured) {
-    return res.status(500).json({ error: 'Server admin credentials (ADMIN_USERNAME & ADMIN_PASSWORD) are not configured in environment variables.' });
-  }
-
   const verified = verifyAdminToken(token);
   if (!verified.valid || !verified.username) {
     return res.status(401).json({ error: 'लॉगिन सेशन संपले आहे. कृपया पुन्हा लॉगिन करा (Session expired).' });
   }
 
-  if (verified.username.toLowerCase() !== envUser.toLowerCase()) {
-    return res.status(401).json({ error: 'अवैध लॉगिन टोकन. कृपया पुन्हा लॉगिन करा (Invalid token).' });
-  }
+  const { username: envUser } = getAdminCredentials();
+  const dbAdmin = db.admins.find((a) => a.username.toLowerCase() === verified.username?.toLowerCase() && a.active !== false) || db.admins[0];
 
   (req as any).admin = {
-    id: 'admin_1',
-    username: envUser,
-    name: 'Super Administrator',
-    role: 'SUPER_ADMIN',
+    id: dbAdmin?.id || 'admin_1',
+    username: verified.username || envUser,
+    name: dbAdmin?.name || 'Super Administrator',
+    role: dbAdmin?.role || 'SUPER_ADMIN',
     mustChangePassword: false,
   };
 
@@ -867,42 +871,65 @@ app.post('/api/register', (req, res) => {
   }
 });
 
-// 6. Verification Endpoint for Razorpay
-app.post('/api/payment/verify', (req, res) => {
-  const { studentId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+// 6. Verification Endpoint for Razorpay / Confirmation
+const handlePaymentVerification = (req: express.Request, res: express.Response) => {
+  const { studentId, registrationId, mobileNumber, razorpay_payment_id, razorpay_order_id, paymentId } = req.body;
+  const lookupId = studentId || registrationId || '';
+  const payId = razorpay_payment_id || paymentId || `pay_RZP${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
-  if (studentId) {
-    const student = db.students.find((s) => s.id === studentId);
-    if (student) {
-      student.paymentStatus = 'PAID';
-      student.paymentId = razorpay_payment_id || `pay_RZP${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-      saveDB(db);
-
-      const template = db.communicationSettings.templates.paymentSuccess;
-      const formattedMessage = formatMessageTemplate(template, student);
-
-      return res.json({
-        success: true,
-        verified: true,
-        registration: student,
-        paymentId: student.paymentId,
-        whatsappMessage: formattedMessage,
-        communityLink: db.whatsappSettings.communityLink,
-      });
-    }
+  let student = null;
+  if (lookupId) {
+    student = db.students.find((s) => s.id === lookupId);
+  }
+  if (!student && mobileNumber) {
+    student = db.students.find((s) => s.mobileNumber === mobileNumber);
   }
 
-  if (razorpay_payment_id) {
+  if (student) {
+    const wasPending = student.paymentStatus !== 'PAID';
+    student.paymentStatus = 'PAID';
+    student.paymentId = payId;
+
+    if (wasPending) {
+      const courseDate = db.courseDates.find((cd) => cd.id === student.courseDateId);
+      if (courseDate) {
+        const slotKey: 'slot1' | 'slot2' = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+        if (courseDate[slotKey]) {
+          courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+        }
+      }
+    }
+
+    saveDB(db);
+
+    const template = db.communicationSettings.templates.paymentSuccess;
+    const formattedMessage = formatMessageTemplate(template, student);
+
     return res.json({
       success: true,
       verified: true,
-      paymentId: razorpay_payment_id,
-      message: 'Razorpay payment verified.',
+      registration: student,
+      paymentId: student.paymentId,
+      whatsappMessage: formattedMessage,
+      communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
     });
   }
 
-  return res.status(400).json({ error: 'Invalid payment parameters.' });
-});
+  if (razorpay_payment_id || paymentId) {
+    return res.json({
+      success: true,
+      verified: true,
+      paymentId: payId,
+      message: 'Payment recorded.',
+      communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+    });
+  }
+
+  return res.status(400).json({ error: 'नोंदणी सापडली नाही (Registration not found).' });
+};
+
+app.post('/api/payment/verify', handlePaymentVerification);
+app.post('/api/confirm-payment', handlePaymentVerification);
 
 // 7. Student Lookup
 app.get('/api/lookup/:query', (req, res) => {
@@ -952,16 +979,7 @@ app.get('/api/admin/auth-status', (req, res) => {
 // 8. Admin Login
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
-  const { username: envUser, password: envPass, isConfigured } = getAdminCredentials();
-
-  // Strict check 1: Server environment credentials must be configured
-  if (!isConfigured) {
-    console.error('[AUTH ERROR] Server admin credentials are not configured in environment variables (ADMIN_USERNAME & ADMIN_PASSWORD).');
-    return res.status(500).json({
-      error: 'सर्व्हर कॉन्फिगरेशन त्रुटी: ॲडमिन क्रेडेंशियल्स (ADMIN_USERNAME आणि ADMIN_PASSWORD) सर्व्हर एनव्हायर्नमेंटमध्ये सेट केलेले नाहीत. कृपया Render / Server Settings मध्ये हे व्हेरिएबल्स जोडा.',
-      code: 'ADMIN_CREDENTIALS_NOT_CONFIGURED',
-    });
-  }
+  const { username: envUser, password: envPass } = getAdminCredentials();
 
   const inputUser = String(username || '').trim();
   const inputPass = String(password || '').trim();
@@ -970,29 +988,40 @@ app.post('/api/admin/login', (req, res) => {
     return res.status(400).json({ error: 'कृपया Username आणि Password दोन्ही प्रविष्ट करा (Please enter both username and password).' });
   }
 
-  // Strict check 2: Validate against environment variables (case-insensitive username, exact password)
-  const isUsernameMatch = inputUser.toLowerCase() === envUser.toLowerCase();
-  const isPasswordMatch = inputPass === envPass;
+  // Check 1: Match against active env/default credentials
+  const isEnvUserMatch = inputUser.toLowerCase() === envUser.toLowerCase();
+  const isEnvPassMatch = inputPass === envPass;
 
-  if (!isUsernameMatch || !isPasswordMatch) {
+  // Check 2: Match against db.admins list
+  const inputHash = hashPassword(inputPass);
+  const matchedDbAdmin = db.admins.find(
+    (a) =>
+      a.username.toLowerCase() === inputUser.toLowerCase() &&
+      (a.passwordHash === inputHash || (isEnvPassMatch && isEnvUserMatch)) &&
+      a.active !== false
+  );
+
+  const isAuthenticated = (isEnvUserMatch && isEnvPassMatch) || !!matchedDbAdmin;
+
+  if (!isAuthenticated) {
     console.warn(`[AUTH] Invalid admin login attempt for user: "${inputUser}" from IP: ${req.ip}`);
     return res.status(401).json({ error: 'चुकीचे Username किंवा Password (Invalid username or password).' });
   }
 
-  // Create signed session token
-  const token = createAdminToken(envUser);
+  const authenticatedUsername = matchedDbAdmin?.username || envUser;
+  const token = createAdminToken(authenticatedUsername);
 
-  addAuditLog(envUser, 'ADMIN_LOGIN', 'Admin login successful', req.ip);
-  console.log(`[AUTH] Admin login successful for user: "${envUser}"`);
+  addAuditLog(authenticatedUsername, 'ADMIN_LOGIN', 'Admin login successful', req.ip);
+  console.log(`[AUTH] Admin login successful for user: "${authenticatedUsername}"`);
 
   return res.json({
     success: true,
     token,
     admin: {
-      id: 'admin_1',
-      username: envUser,
-      name: 'Super Administrator',
-      role: 'SUPER_ADMIN',
+      id: matchedDbAdmin?.id || 'admin_1',
+      username: authenticatedUsername,
+      name: matchedDbAdmin?.name || 'Super Administrator',
+      role: matchedDbAdmin?.role || 'SUPER_ADMIN',
       mustChangePassword: false,
     },
   });
@@ -1543,10 +1572,11 @@ app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
   const { currentPassword, newUsername, newPassword } = req.body;
   const { username: envUser, password: envPass } = getAdminCredentials();
 
-  // Verify current password if provided against active env admin password
+  // Verify current password against active env admin password or db.admins passwordHash
   if (currentPassword) {
-    const isCurrentCorrect = currentPassword === envPass;
-    if (!isCurrentCorrect) {
+    const isCurrentEnvCorrect = currentPassword === envPass;
+    const isCurrentHashCorrect = db.admins?.[0]?.passwordHash === hashPassword(currentPassword);
+    if (!isCurrentEnvCorrect && !isCurrentHashCorrect) {
       return res.status(400).json({ error: 'सध्याचा पासवर्ड चुकीचा आहे (Current password incorrect).' });
     }
   }
@@ -1557,16 +1587,41 @@ app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
     }
   }
 
-  addAuditLog(admin.username || envUser, 'CHANGE_ADMIN_CREDENTIALS', 'Admin requested credential instructions.');
+  const updatedUsername = newUsername?.trim() || admin.username || envUser;
+  
+  // Persist to db.admins
+  if (!db.admins || db.admins.length === 0) {
+    db.admins = [{
+      id: 'admin_1',
+      username: updatedUsername,
+      name: 'Super Administrator',
+      passwordHash: hashPassword(newPassword?.trim() || envPass),
+      role: 'SUPER_ADMIN',
+      mustChangePassword: false,
+      active: true,
+      createdAt: new Date().toISOString(),
+    }];
+  } else {
+    db.admins[0].username = updatedUsername;
+    if (newPassword && newPassword.trim()) {
+      db.admins[0].passwordHash = hashPassword(newPassword.trim());
+    }
+  }
+  saveDB(db);
+
+  const newToken = createAdminToken(updatedUsername);
+
+  addAuditLog(updatedUsername, 'CHANGE_ADMIN_CREDENTIALS', `Admin credentials updated for ${updatedUsername}.`);
 
   res.json({
     success: true,
-    message: 'सर्व्हर सुरक्षिततेसाठी कृपया Render Dashboard मधील Environment Variables (ADMIN_USERNAME / ADMIN_PASSWORD) मध्ये नवीन क्रेडेंशियल्स अपडेट करा.',
+    message: 'क्रेडेंशियल्स यशस्वीरित्या अपडेट करण्यात आले आहेत (Credentials updated successfully).',
+    token: newToken,
     admin: {
-      id: 'admin_1',
-      username: newUsername?.trim() || admin.username || envUser,
-      name: 'Super Administrator',
-      role: 'SUPER_ADMIN',
+      id: db.admins[0].id,
+      username: updatedUsername,
+      name: db.admins[0].name,
+      role: db.admins[0].role,
     },
   });
 });

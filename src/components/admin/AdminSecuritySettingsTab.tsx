@@ -20,7 +20,7 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
   adminUser,
   onRefresh,
 }) => {
-  const [currentUsername, setCurrentUsername] = useState(adminUser?.username || 'admin');
+  const [currentUsername, setCurrentUsername] = useState(adminUser?.username || 'aimarathi');
   const [newUsername, setNewUsername] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
