@@ -312,6 +312,22 @@
   },
   "auditLogs": [
     {
+      "id": "log_1787251598896_422",
+      "timestamp": "2026-08-20T18:46:38.896Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1787250245586_74",
+      "timestamp": "2026-08-20T18:24:05.586Z",
+      "adminUsername": "aimarathi",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
       "id": "log_1787249804598_599",
       "timestamp": "2026-08-20T18:16:44.598Z",
       "adminUsername": "aimarathi",
