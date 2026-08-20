@@ -85,10 +85,19 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   };
 
   const getPersonalizedMessage = () => {
+    let communityLink = 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
+    try {
+      const cached = localStorage.getItem('amg_cached_whatsapp_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.communityLink) communityLink = parsed.communityLink;
+      }
+    } catch (_) {}
+
     if (paymentStatus === 'PAID') {
-      return `नमस्कार ${fullName} 👋\n\nAI Marathi Guru मध्ये तुमची नोंदणी व फी पेमेंट यशस्वी झाले आहे. 🎉\n\nनोंदणी ID: ${student.id}\nतारीख: ${student.courseDateDisplay}\nवेळ: ${student.slotTimeDisplay}\nPayment: PAID (₹${amountPaid})\n\nOfficial WhatsApp Community Link:\nhttps://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO\n\nLive Class Google Meet:\n${student.meetLink || 'https://meet.google.com/amg-live-session'}\n\nधन्यवाद!\nAI Marathi Guru`;
+      return `नमस्कार ${fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${student.id}\nCourse Date: ${student.courseDateDisplay}\nTime Slot: ${student.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n${communityLink}\n\nधन्यवाद,\nAI Marathi Guru`;
     }
-    return `नमस्कार ${fullName} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रक्रिया प्रलंबित आहे. कृपया खालील लिंकवरून ₹${amountPaid} पेमेंट पूर्ण करा:\nhttps://rzp.io/l/ai-marathi-guru\n\nधन्यवाद!\nAI Marathi Guru`;
+    return `नमस्कार ${fullName} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रक्रिया प्रलंबित आहे. कृपया खालील लिंकवरून ₹${amountPaid} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
   };
 
   const handleCopy = () => {

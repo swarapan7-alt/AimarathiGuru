@@ -335,7 +335,7 @@ function loadDB(): DBStructure {
   const defaultTemplates = {
     registrationSuccess: `नमस्कार {student_name} 👋\n\nAI Marathi Guru मध्ये तुमची नोंदणी प्राप्त झाली आहे. 📝\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n💰 Status: {payment_status}\n\nपुढील सूचनांसाठी WhatsApp Community शी कनेक्ट राहा:\n{whatsapp_link}`,
     paymentPending: `नमस्कार {student_name} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रोसेस सुरू झाली आहे. कृपया खालील लिंकवरून ₹{course_fee} पेमेंट पूर्ण करा:\n{payment_link}\n\nपेमेंट झाल्यावर तात्काळ WhatsApp Community ॲक्सेस मिळेल.`,
-    paymentSuccess: `🎉 अभिनंदन {student_name}!\n\nतुमचे AI Marathi Guru Live Training साठी Registration व Payment यशस्वी झाले आहे.\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n💰 Payment: PAID (₹{course_fee})\n\nआता खालील लिंकवर क्लिक करून Official WhatsApp Community Join करा:\n{whatsapp_link}`,
+    paymentSuccess: `नमस्कार {Student Name} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: {Registration ID}\nCourse Date: {Course Date}\nTime Slot: {Selected Slot}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n{WhatsApp Community Link}\n\nधन्यवाद,\nAI Marathi Guru`,
     whatsappJoin: `नमस्कार {student_name} 👋\n\nAI Marathi Guru बॅचमध्ये स्वागत आहे! सर्व क्लास अपडेट्स, Google Meet लिंक व स्टडी मटेरियल मिळवण्यासाठी त्वरित खालील Official Community Join करा:\n{whatsapp_link}`,
     courseReminder: `नमस्कार {student_name} 👋\n\nआज तुमचे AI Marathi Guru Live Training आहे.\n\n📅 तारीख: {course_date}\n⏰ वेळ: {course_slot}\n\nकृपया क्लास वेळेच्या १० मिनिटे आधी तयार राहा. भेटूया लाईव्ह सेशन्समध्ये! 🚀`,
     liveSessionMessage: `नमस्कार {student_name} 👋\n\nतुमचा AI Marathi Guru Live Class सुरू होत आहे!\n\n📅 Date: {course_date}\n⏰ Slot: {course_slot}\n🔗 Google Meet Link: {meet_link}\n\nकृपया त्वरित जॉईन व्हा.`,
@@ -564,31 +564,66 @@ function addAuditLog(adminUsername: string, action: string, details: string, ip?
   saveDB(db);
 }
 
-// Format template with variables
+// Format template with dynamic variables
 function formatMessageTemplate(template: string, student: any, extra?: Record<string, string>): string {
   if (!template) return '';
   let msg = template;
-  msg = msg.replace(/{student_name}/gi, student.fullName || student.name || '');
-  msg = msg.replace(/{STUDENT_NAME}/g, student.fullName || student.name || '');
-  msg = msg.replace(/{Student Name}/g, student.fullName || student.name || '');
-  msg = msg.replace(/{course_date}/gi, student.courseDateDisplay || '');
-  msg = msg.replace(/{COURSE_DATE}/g, student.courseDateDisplay || '');
-  msg = msg.replace(/{Course Date}/g, student.courseDateDisplay || '');
-  msg = msg.replace(/{course_slot}/gi, student.slotTimeDisplay || '');
-  msg = msg.replace(/{SLOT_TIME}/g, student.slotTimeDisplay || '');
-  msg = msg.replace(/{Selected Slot}/g, student.slotTimeDisplay || '');
-  msg = msg.replace(/{Time Slot}/g, student.slotTimeDisplay || '');
-  msg = msg.replace(/{payment_status}/gi, student.paymentStatus || 'PENDING');
-  msg = msg.replace(/{Payment Status}/g, student.paymentStatus || 'PENDING');
-  msg = msg.replace(/{course_fee}/gi, String(student.amountPaid || db.paymentSettings.courseFee || 199));
-  msg = msg.replace(/{whatsapp_link}/gi, db.whatsappSettings.communityLink || db.communicationSettings.communityLink);
-  msg = msg.replace(/{WHATSAPP_COMMUNITY_LINK}/g, db.whatsappSettings.communityLink || db.communicationSettings.communityLink);
-  msg = msg.replace(/{payment_link}/gi, db.paymentSettings.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0');
-  msg = msg.replace(/{registration_id}/gi, student.id || '');
-  msg = msg.replace(/{REGISTRATION_ID}/g, student.id || '');
-  msg = msg.replace(/{Registration ID}/g, student.id || '');
-  msg = msg.replace(/{meet_link}/gi, student.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session');
-  msg = msg.replace(/{GOOGLE_MEET_LINK}/g, student.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session');
+
+  const communityLink =
+    db.whatsappSettings?.communityLink ||
+    db.communicationSettings?.communityLink ||
+    'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
+  const studentName = student?.fullName || student?.name || 'विद्यार्थी';
+  const regId = student?.id || '';
+  const courseDate = student?.courseDateDisplay || '';
+  const slotTime = student?.slotTimeDisplay || '';
+  const paymentStatus = student?.paymentStatus || 'PAID';
+  const courseFee = String(student?.amountPaid || db.paymentSettings?.courseFee || 199);
+  const meetLink =
+    student?.meetLink || db.liveSessionSettings?.googleMeetLink || 'https://meet.google.com/amg-live-session';
+  const paymentLink = db.paymentSettings?.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0';
+
+  // 1. Student Name replacements
+  msg = msg.replace(/{Student Name}/gi, studentName);
+  msg = msg.replace(/{student_name}/gi, studentName);
+  msg = msg.replace(/{STUDENT_NAME}/g, studentName);
+  msg = msg.replace(/{Full Name}/gi, studentName);
+  msg = msg.replace(/{full_name}/gi, studentName);
+
+  // 2. Registration ID replacements
+  msg = msg.replace(/{Registration ID}/gi, regId);
+  msg = msg.replace(/{registration_id}/gi, regId);
+  msg = msg.replace(/{REGISTRATION_ID}/g, regId);
+
+  // 3. Course Date replacements
+  msg = msg.replace(/{Course Date}/gi, courseDate);
+  msg = msg.replace(/{course_date}/gi, courseDate);
+  msg = msg.replace(/{COURSE_DATE}/g, courseDate);
+
+  // 4. Selected Slot / Time Slot replacements
+  msg = msg.replace(/{Selected Slot}/gi, slotTime);
+  msg = msg.replace(/{selected_slot}/gi, slotTime);
+  msg = msg.replace(/{Time Slot}/gi, slotTime);
+  msg = msg.replace(/{time_slot}/gi, slotTime);
+  msg = msg.replace(/{course_slot}/gi, slotTime);
+  msg = msg.replace(/{SLOT_TIME}/g, slotTime);
+
+  // 5. WhatsApp Community Link replacements
+  msg = msg.replace(/{WhatsApp Community Link}/gi, communityLink);
+  msg = msg.replace(/{whatsapp_community_link}/gi, communityLink);
+  msg = msg.replace(/{whatsapp_link}/gi, communityLink);
+  msg = msg.replace(/{WHATSAPP_COMMUNITY_LINK}/g, communityLink);
+
+  // 6. Payment Status & Fee replacements
+  msg = msg.replace(/{Payment Status}/gi, paymentStatus);
+  msg = msg.replace(/{payment_status}/gi, paymentStatus);
+  msg = msg.replace(/{PAYMENT_STATUS}/g, paymentStatus);
+  msg = msg.replace(/{course_fee}/gi, courseFee);
+  msg = msg.replace(/{payment_link}/gi, paymentLink);
+
+  // 7. Meet Link replacements
+  msg = msg.replace(/{meet_link}/gi, meetLink);
+  msg = msg.replace(/{GOOGLE_MEET_LINK}/g, meetLink);
 
   if (extra) {
     Object.keys(extra).forEach((k) => {

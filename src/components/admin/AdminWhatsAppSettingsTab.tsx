@@ -1,57 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MessageCircle,
   Save,
   CheckCircle2,
   ExternalLink,
-  Phone,
   Sparkles,
   RotateCcw,
   Copy,
   Check,
   Code,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Link as LinkIcon,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { WhatsAppSettings } from '../../types';
 
 interface AdminWhatsAppSettingsTabProps {
   onRefresh?: () => void;
 }
 
-const DEFAULT_WHATSAPP_TEMPLATE = `🎉 नमस्कार {student_name}!
+export const DEFAULT_PAYMENT_SUCCESS_TEMPLATE = `नमस्कार {Student Name} 👋
 
-तुमचे AI Marathi Guru Live Training साठी Registration आणि Payment यशस्वी झाले आहे. ✅
+AI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉
 
-📋 Registration ID: {registration_id}
+Registration ID: {Registration ID}
+Course Date: {Course Date}
+Time Slot: {Selected Slot}
+Payment Status: PAID
 
-📅 Course Date: {course_date}
+महत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.
 
-⏰ Slot: {course_slot}
+WhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇
 
-💰 Payment Status: {payment_status}
+{WhatsApp Community Link}
 
-महत्त्वाच्या Course Updates आणि Live Session ची माहिती मिळवण्यासाठी खालील AI Marathi Guru WhatsApp Community मध्ये Join करा 👇
-
-{whatsapp_link}
-
-धन्यवाद! 🙏
+धन्यवाद,
 AI Marathi Guru`;
 
 export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> = ({ onRefresh }) => {
+  // 1. WhatsApp Community Link state
   const [communityLink, setCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-  const [groupLink, setGroupLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-  const [adminNumber, setAdminNumber] = useState('9801555171');
-  const [customMessage, setCustomMessage] = useState(
-    'तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.'
-  );
-  const [prefilledMessageTemplate, setPrefilledMessageTemplate] = useState(DEFAULT_WHATSAPP_TEMPLATE);
-  const [buttonText, setButtonText] = useState('JOIN WHATSAPP COMMUNITY');
+  const [savedCommunityLink, setSavedCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
+  const [communityLinkError, setCommunityLinkError] = useState('');
+  const [isSavingLink, setIsSavingLink] = useState(false);
+  const [linkSaveSuccess, setLinkSaveSuccess] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  // 2. Message Template state
+  const [messageTemplate, setMessageTemplate] = useState(DEFAULT_PAYMENT_SUCCESS_TEMPLATE);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [templateSaveSuccess, setTemplateSaveSuccess] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
   const [copiedPreview, setCopiedPreview] = useState(false);
 
+  // 3. Additional optional settings
+  const [groupLink, setGroupLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
+  const [adminNumber, setAdminNumber] = useState('9801555171');
+  const [showExtraSettings, setShowExtraSettings] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   useEffect(() => {
+    // Initial load with local storage fallback for instant response
+    try {
+      const cached = localStorage.getItem('amg_cached_whatsapp_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.communityLink) {
+          setCommunityLink(parsed.communityLink);
+          setSavedCommunityLink(parsed.communityLink);
+        }
+        if (parsed.groupLink) setGroupLink(parsed.groupLink);
+        if (parsed.adminWhatsAppNumber) setAdminNumber(parsed.adminWhatsAppNumber);
+      }
+      const cachedTemplate = localStorage.getItem('amg_cached_payment_template');
+      if (cachedTemplate) {
+        setMessageTemplate(cachedTemplate);
+      }
+    } catch (_) {}
+
     fetchSettings();
   }, []);
 
@@ -67,303 +97,574 @@ export const AdminWhatsAppSettingsTab: React.FC<AdminWhatsAppSettingsTabProps> =
       const [waData, msgData] = await Promise.all([waRes.json(), msgRes.json()]);
 
       if (waRes.ok && waData.whatsappSettings) {
-        setCommunityLink(waData.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
+        const activeLink = waData.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
+        setCommunityLink(activeLink);
+        setSavedCommunityLink(activeLink);
         setGroupLink(waData.whatsappSettings.groupLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
         setAdminNumber(waData.whatsappSettings.adminWhatsAppNumber || '9801555171');
-        setCustomMessage(
-          waData.whatsappSettings.customSuccessMessage ||
-            'तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.'
-        );
-        setButtonText(waData.whatsappSettings.buttonText || 'JOIN WHATSAPP COMMUNITY');
+
+        try {
+          localStorage.setItem('amg_cached_whatsapp_settings', JSON.stringify(waData.whatsappSettings));
+        } catch (_) {}
       }
 
       if (msgRes.ok && msgData.templates?.paymentSuccess) {
-        setPrefilledMessageTemplate(msgData.templates.paymentSuccess);
+        setMessageTemplate(msgData.templates.paymentSuccess);
+        try {
+          localStorage.setItem('amg_cached_payment_template', msgData.templates.paymentSuccess);
+        } catch (_) {}
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch WhatsApp settings:', e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    setSaveSuccess(false);
+  // Validate WhatsApp Link
+  const validateLink = (url: string) => {
+    if (!url || !url.trim()) {
+      return 'कृपया WhatsApp Community URL प्रविष्ट करा.';
+    }
+    const cleanUrl = url.trim().toLowerCase();
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      return 'URL http:// किंवा https:// ने सुरू होणे आवश्यक आहे.';
+    }
+    if (!cleanUrl.includes('whatsapp.com') && !cleanUrl.includes('wa.me')) {
+      return 'कृपया वैध WhatsApp लिंक प्रविष्ट करा (उदा. https://chat.whatsapp.com/...).';
+    }
+    return '';
+  };
+
+  // Save CARD 1: WhatsApp Community Link
+  const handleSaveCommunityLink = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const error = validateLink(communityLink);
+    if (error) {
+      setCommunityLinkError(error);
+      return;
+    }
+    setCommunityLinkError('');
+    setIsSavingLink(true);
+    setLinkSaveSuccess(false);
 
     const token = localStorage.getItem('amg_admin_token');
     try {
-      const [waSaveRes, msgSaveRes] = await Promise.all([
-        fetch('/api/admin/whatsapp-settings', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            communityLink: communityLink.trim(),
-            groupLink: groupLink.trim(),
-            adminWhatsAppNumber: adminNumber.trim(),
-            customSuccessMessage: customMessage.trim(),
-            buttonText: buttonText.trim(),
-          }),
+      const res = await fetch('/api/admin/whatsapp-settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          communityLink: communityLink.trim(),
+          groupLink: groupLink.trim(),
+          adminWhatsAppNumber: adminNumber.trim(),
         }),
-        fetch('/api/admin/messages', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            templates: {
-              paymentSuccess: prefilledMessageTemplate.trim(),
-              whatsappJoin: customMessage.trim(),
-            },
-          }),
-        }),
-      ]);
+      });
 
-      if (waSaveRes.ok && msgSaveRes.ok) {
-        setSaveSuccess(true);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSavedCommunityLink(communityLink.trim());
+        setLinkSaveSuccess(true);
+        try {
+          localStorage.setItem('amg_cached_whatsapp_settings', JSON.stringify(data.whatsappSettings || { communityLink }));
+        } catch (_) {}
         if (onRefresh) onRefresh();
-        setTimeout(() => setSaveSuccess(false), 3500);
+        setTimeout(() => setLinkSaveSuccess(false), 4000);
       } else {
-        alert('WhatsApp सेटिंग्ज सेव्ह करता आल्या नाहीत.');
+        alert(data.error || 'WhatsApp Community Link सेव्ह करता आला नाही.');
       }
-    } catch (e) {
-      console.error(e);
-      alert('सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.');
+    } catch (err) {
+      console.error(err);
+      alert('सर्व्हरशी संपर्क होऊ शकला नाही.');
     } finally {
-      setIsSaving(false);
+      setIsSavingLink(false);
     }
   };
 
-  const handleResetDefault = () => {
-    setCommunityLink('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-    setGroupLink('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-    setAdminNumber('9801555171');
-    setCustomMessage('तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.');
-    setPrefilledMessageTemplate(DEFAULT_WHATSAPP_TEMPLATE);
-    setButtonText('JOIN WHATSAPP COMMUNITY');
+  // Save CARD 2: Payment Success Message Template
+  const handleSaveTemplate = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!messageTemplate.trim()) {
+      alert('कृपया मेसेज टेम्पलेट रिकामा ठेवू नका.');
+      return;
+    }
+
+    setIsSavingTemplate(true);
+    setTemplateSaveSuccess(false);
+
+    const token = localStorage.getItem('amg_admin_token');
+    try {
+      const res = await fetch('/api/admin/messages', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          templates: {
+            paymentSuccess: messageTemplate.trim(),
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTemplateSaveSuccess(true);
+        try {
+          localStorage.setItem('amg_cached_payment_template', messageTemplate.trim());
+        } catch (_) {}
+        if (onRefresh) onRefresh();
+        setTimeout(() => setTemplateSaveSuccess(false), 4000);
+      } else {
+        alert(data.error || 'मेसेज टेम्पलेट सेव्ह करता आला नाही.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('सर्व्हरशी संपर्क होऊ शकला नाही.');
+    } finally {
+      setIsSavingTemplate(false);
+    }
   };
 
-  // Replace dummy variables for live preview
+  // Reset Template to Official Default
+  const handleResetDefaultTemplate = () => {
+    if (window.confirm('तुम्हाला मेसेज टेम्पलेट मूळ डिफॉल्ट स्वरूपात रिसेट करायचे आहे का?')) {
+      setMessageTemplate(DEFAULT_PAYMENT_SUCCESS_TEMPLATE);
+    }
+  };
+
+  // Insert Variable at Cursor Position
+  const insertVariable = (varCode: string) => {
+    if (textareaRef.current) {
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      const text = messageTemplate;
+      const before = text.substring(0, start);
+      const after = text.substring(end, text.length);
+      const newText = before + varCode + after;
+      setMessageTemplate(newText);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(start + varCode.length, start + varCode.length);
+        }
+      }, 50);
+    } else {
+      setMessageTemplate((prev) => prev + ' ' + varCode);
+    }
+  };
+
+  // Realistic Sample Preview Data (Nikita, AMG-2026-00004, etc.)
   const getRenderedPreview = () => {
-    return prefilledMessageTemplate
-      .replace(/{student_name}/gi, 'राहुल प्रकाश पाटील')
-      .replace(/{registration_id}/gi, 'AMG-2026-00108')
-      .replace(/{course_date}/gi, 'रविवार, २३ ऑगस्ट २०२६')
-      .replace(/{course_slot}/gi, '11:00 AM – 1:00 PM')
-      .replace(/{payment_status}/gi, 'PAID (₹199)')
-      .replace(/{whatsapp_link}/gi, communityLink);
+    const activeCommunityUrl = savedCommunityLink || communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
+    return messageTemplate
+      .replace(/{Student Name}/gi, 'Nikita')
+      .replace(/{student_name}/gi, 'Nikita')
+      .replace(/{Registration ID}/gi, 'AMG-2026-00004')
+      .replace(/{registration_id}/gi, 'AMG-2026-00004')
+      .replace(/{Course Date}/gi, 'Sunday, 23 August 2026')
+      .replace(/{course_date}/gi, 'Sunday, 23 August 2026')
+      .replace(/{Selected Slot}/gi, '11:00 AM – 1:00 PM')
+      .replace(/{selected_slot}/gi, '11:00 AM – 1:00 PM')
+      .replace(/{Time Slot}/gi, '11:00 AM – 1:00 PM')
+      .replace(/{time_slot}/gi, '11:00 AM – 1:00 PM')
+      .replace(/{WhatsApp Community Link}/gi, activeCommunityUrl)
+      .replace(/{whatsapp_link}/gi, activeCommunityUrl)
+      .replace(/{Payment Status}/gi, 'PAID')
+      .replace(/{payment_status}/gi, 'PAID');
   };
 
-  const copyPreview = () => {
+  const copyPreviewToClipboard = () => {
     navigator.clipboard.writeText(getRenderedPreview());
     setCopiedPreview(true);
     setTimeout(() => setCopiedPreview(false), 2500);
   };
 
   const availableVariables = [
-    { code: '{student_name}', desc: 'विद्यार्थ्याचे नाव' },
-    { code: '{registration_id}', desc: 'नोंदणी क्रमांक (ID)' },
-    { code: '{course_date}', desc: 'कोर्सची तारीख' },
-    { code: '{course_slot}', desc: 'कोर्सची वेळ / स्लॉट' },
-    { code: '{payment_status}', desc: 'पेमेंट स्थिती (PAID)' },
-    { code: '{whatsapp_link}', desc: 'WhatsApp Community लिंक' },
+    { code: '{Student Name}', label: 'Student Name', desc: 'नोंदणीकृत विद्यार्थ्याचे नाव' },
+    { code: '{Registration ID}', label: 'Registration ID', desc: 'युनिक नोंदणी क्रमांक (उदा. AMG-2026-00004)' },
+    { code: '{Course Date}', label: 'Course Date', desc: 'निवडलेली क्लास तारीख' },
+    { code: '{Selected Slot}', label: 'Selected Slot', desc: 'निवडलेला वेळेचा स्लॉट' },
+    { code: '{WhatsApp Community Link}', label: 'WhatsApp Community Link', desc: 'सेव्ह केलेली अधिकृत WhatsApp लिंक' },
   ];
 
-  const insertVariable = (variableCode: string) => {
-    setPrefilledMessageTemplate((prev) => prev + ' ' + variableCode);
-  };
-
   return (
-    <div className="space-y-3.5 max-w-4xl">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-900 rounded-xl sm:rounded-2xl px-4 py-3 sm:py-3.5 text-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div id="admin-whatsapp-settings-container" className="space-y-6 max-w-4xl pb-8">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/10 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1 font-poppins">
-            <MessageCircle className="w-3 h-3" /> Official WhatsApp Integration
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider mb-2 font-poppins border border-emerald-400/20">
+            <MessageCircle className="w-3.5 h-3.5" /> Official WhatsApp Automation
           </div>
-          <h1 className="text-base sm:text-lg font-black font-poppins">
-            WhatsApp Settings & Pre-filled Messages
+          <h1 className="text-xl sm:text-2xl font-black font-poppins text-white">
+            WhatsApp Settings
           </h1>
-          <p className="text-[11px] text-emerald-100 font-marathi-sub mt-0.5">
-            अधिकृत WhatsApp Community लिंक, ॲडमिन नंबर आणि 'SEND VIA WHATSAPP APP' मेसेज टेम्पलेट
+          <p className="text-xs sm:text-sm text-emerald-100 font-marathi-sub mt-1">
+            अधिकृत WhatsApp Community लिंक आणि पेमेंट कन्फर्मेशन मेसेज ऑटोमेशन व्यवस्थापन
           </p>
         </div>
 
         <button
           type="button"
-          onClick={() => window.open(communityLink, '_blank')}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-emerald-800 hover:bg-emerald-50 text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto shrink-0"
+          id="btn-test-live-whatsapp-link"
+          onClick={() => window.open(savedCommunityLink || communityLink, '_blank')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-sm cursor-pointer self-start sm:self-auto shrink-0 uppercase tracking-wider"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          <span>Test Link</span>
+          <ExternalLink className="w-4 h-4" />
+          <span>Open Live Community</span>
         </button>
       </div>
 
-      {saveSuccess && (
-        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>WhatsApp सेटिंग्ज व मेसेज टेम्पलेट यशस्वीरित्या सेव्ह झाले आहेत!</span>
+      {/* ======================================================== */}
+      {/* CARD 1: WhatsApp Community Link Management              */}
+      {/* ======================================================== */}
+      <div
+        id="card-whatsapp-community-link"
+        className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 sm:p-6 space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <LinkIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 font-poppins">
+                WhatsApp Community Link
+              </h2>
+              <p className="text-xs text-slate-500 font-marathi-sub mt-0.5">
+                This link will automatically be included in successful registration messages.
+              </p>
+            </div>
           </div>
-          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">SAVED</span>
-        </div>
-      )}
 
-      {/* Main Settings Form */}
-      <form onSubmit={handleSave} className="bg-white p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-stone-200 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {/* Community Link */}
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
-              WhatsApp Community Link (अधिकृत कम्युनिटी लिंक) *
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-extrabold border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Active Link
+            </span>
+          </div>
+        </div>
+
+        {/* Success Alert for Card 1 */}
+        {linkSaveSuccess && (
+          <div
+            id="alert-community-link-saved"
+            className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-black flex items-center justify-between shadow-xs animate-in fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>✓ WhatsApp Community Link saved successfully.</span>
+            </div>
+            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md uppercase font-bold">
+              Saved Permanently
+            </span>
+          </div>
+        )}
+
+        {/* Display Currently Saved Link */}
+        <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Currently Saved Link:
+            </span>
+            <button
+              type="button"
+              onClick={() => window.open(savedCommunityLink, '_blank')}
+              className="text-[11px] text-emerald-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>Test Current Link</span>
+            </button>
+          </div>
+          <p className="text-xs font-mono text-emerald-800 font-bold break-all bg-white px-2.5 py-1.5 rounded-lg border border-stone-200">
+            {savedCommunityLink || 'None set'}
+          </p>
+        </div>
+
+        {/* Link Edit Form */}
+        <form onSubmit={handleSaveCommunityLink} className="space-y-4">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="input-whatsapp-community-url"
+              className="text-xs font-black text-slate-800 uppercase tracking-wider block"
+            >
+              WhatsApp Community URL *
             </label>
-            <input
-              type="url"
-              required
-              value={communityLink}
-              onChange={(e) => setCommunityLink(e.target.value)}
-              placeholder="https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO"
-              className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
-            />
-            <p className="text-[10px] text-slate-500">
-              विद्यार्थी 'JOIN WHATSAPP COMMUNITY' बटणावर क्लिक केल्यावर या लिंकवर रीडायरेक्ट होतात.
+            <div className="relative">
+              <input
+                id="input-whatsapp-community-url"
+                type="url"
+                required
+                value={communityLink}
+                onChange={(e) => {
+                  setCommunityLink(e.target.value);
+                  if (communityLinkError) setCommunityLinkError('');
+                }}
+                placeholder="https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO"
+                className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-stone-50 border rounded-xl outline-none font-mono text-slate-900 transition ${
+                  communityLinkError
+                    ? 'border-red-500 bg-red-50/30 focus:border-red-600'
+                    : 'border-stone-300 focus:border-emerald-600 focus:bg-white'
+                }`}
+              />
+            </div>
+            {communityLinkError && (
+              <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{communityLinkError}</span>
+              </p>
+            )}
+            <p className="text-[11px] text-slate-500 leading-relaxed font-marathi-sub">
+              विद्यार्थी पेमेंट पूर्ण केल्यानंतर व 'JOIN WHATSAPP COMMUNITY' बटणावर क्लिक केल्यावर या अधिकृत ग्रुपमध्ये ॲड होतात.
             </p>
           </div>
 
-          {/* Group Link */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
-              WhatsApp Group Link (बॅकअप ग्रुप लिंक)
-            </label>
-            <input
-              type="url"
-              value={groupLink}
-              onChange={(e) => setGroupLink(e.target.value)}
-              placeholder="https://chat.whatsapp.com/..."
-              className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
-            />
-          </div>
-
-          {/* Admin WhatsApp Number */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
-              Admin WhatsApp Number (सपोर्ट नंबर) *
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
-              <input
-                type="text"
-                required
-                value={adminNumber}
-                onChange={(e) => setAdminNumber(e.target.value)}
-                placeholder="9801555171"
-                className="w-full pl-10 pr-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white font-mono"
-              />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <div className="text-[11px] text-slate-400 font-medium hidden sm:block">
+              बदल सेव्ह केल्यावर सर्व नवीन मेसेजेसमध्ये हीच लिंक वापरली जाईल.
             </div>
-          </div>
-        </div>
 
-        {/* WhatsApp Pre-filled Message Template (SEND VIA WHATSAPP APP) */}
-        <div className="space-y-1.5 pt-2 border-t border-stone-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-            <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1">
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>'SEND VIA WHATSAPP APP' Pre-filled Message Template *</span>
-            </label>
             <button
-              type="button"
-              onClick={copyPreview}
-              className="text-[10px] text-emerald-700 font-bold hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+              id="btn-save-whatsapp-community-link"
+              type="submit"
+              disabled={isSavingLink}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-xs uppercase tracking-wider transition shadow-sm cursor-pointer disabled:opacity-50 font-poppins"
             >
-              {copiedPreview ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedPreview ? 'Copied Preview!' : 'Copy Preview'}</span>
+              <Save className="w-4 h-4" />
+              <span>{isSavingLink ? 'Saving Link...' : 'Save Changes'}</span>
             </button>
           </div>
+        </form>
+      </div>
 
-          {/* Dynamic Variable Chips */}
-          <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 space-y-1.5">
-            <div className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
-              <Code className="w-3 h-3 text-blue-600" />
-              <span>उपलब्ध व्हेरिएबल्स (क्लिक करून मेसेजमध्ये जोडा):</span>
+      {/* ======================================================== */}
+      {/* CARD 2: Payment Success Message Template                 */}
+      {/* ======================================================== */}
+      <div
+        id="card-payment-success-message-template"
+        className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 sm:p-6 space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5" />
             </div>
-            <div className="flex flex-wrap gap-1">
-              {availableVariables.map((v, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => insertVariable(v.code)}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-bold transition cursor-pointer"
-                  title={v.desc}
-                >
-                  + {v.code}
-                </button>
-              ))}
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 font-poppins">
+                Payment Success Message Template
+              </h2>
+              <p className="text-xs text-slate-500 font-marathi-sub mt-0.5">
+                पेमेंट यशस्वी झाल्यानंतर विद्यार्थ्याला जाणारा स्वयंचलित WhatsApp संदेश संपादित करा
+              </p>
             </div>
           </div>
 
-          <textarea
-            rows={5}
-            required
-            value={prefilledMessageTemplate}
-            onChange={(e) => setPrefilledMessageTemplate(e.target.value)}
-            className="w-full p-2.5 text-xs font-mono bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 focus:bg-white leading-relaxed text-slate-900"
-          />
-        </div>
-
-        {/* Success Message Text for Web UI */}
-        <div className="space-y-1">
-          <label className="text-[11px] font-black text-slate-800 block uppercase tracking-wider">
-            Registration Success Text (वेबसाईटवर दिसणारा मेसेज)
-          </label>
-          <textarea
-            rows={2}
-            required
-            value={customMessage}
-            onChange={(e) => setCustomMessage(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg outline-none focus:border-emerald-600 leading-relaxed"
-          />
-        </div>
-
-        {/* Live Message Preview */}
-        <div className="p-3.5 rounded-xl bg-slate-900 text-white space-y-2 shadow-inner">
-          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-400" /> Live Message Preview (विद्यार्थ्याला जाणारा संदेश)
-            </span>
-            <span className="text-emerald-400 font-mono">AUTOMATED WHATSAPP</span>
-          </div>
-
-          <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-emerald-400 font-mono text-[11px] whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
-            {getRenderedPreview()}
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-stone-200">
           <button
             type="button"
-            onClick={handleResetDefault}
-            className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg border border-stone-300 text-slate-600 hover:bg-stone-100 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+            onClick={handleResetDefaultTemplate}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-slate-600 hover:bg-stone-100 text-xs font-bold transition cursor-pointer self-start sm:self-auto"
           >
-            <RotateCcw className="w-3 h-3" />
-            <span>Reset to Default</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Default Template</span>
+          </button>
+        </div>
+
+        {/* Success Alert for Card 2 */}
+        {templateSaveSuccess && (
+          <div
+            id="alert-template-saved"
+            className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-black flex items-center justify-between shadow-xs animate-in fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>✓ Payment Success Message Template saved successfully.</span>
+            </div>
+            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md uppercase font-bold">
+              Template Saved
+            </span>
+          </div>
+        )}
+
+        {/* Editable Message Textarea */}
+        <div className="space-y-2">
+          <label
+            htmlFor="textarea-message-template"
+            className="text-xs font-black text-slate-800 uppercase tracking-wider block"
+          >
+            Message Content (मेसेज मजकूर) *
+          </label>
+
+          <textarea
+            id="textarea-message-template"
+            ref={textareaRef}
+            rows={10}
+            required
+            value={messageTemplate}
+            onChange={(e) => setMessageTemplate(e.target.value)}
+            className="w-full p-3.5 text-xs sm:text-sm font-mono bg-stone-50 border border-stone-300 rounded-xl outline-none focus:border-emerald-600 focus:bg-white leading-relaxed text-slate-900 shadow-inner"
+            placeholder="येथे मेसेज टेम्पलेट टाईप करा..."
+          />
+        </div>
+
+        {/* Available Variables Section */}
+        <div id="section-available-variables" className="p-4 bg-slate-50 rounded-xl border border-stone-200 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Code className="w-4 h-4 text-blue-600" />
+              <span>Available Variables:</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium">
+              (व्हेरिएबलवर क्लिक करून मेसेजमध्ये जोडा)
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {availableVariables.map((v, i) => (
+              <button
+                key={i}
+                type="button"
+                id={`btn-var-${v.label.toLowerCase().replace(/\s+/g, '-')}`}
+                onClick={() => insertVariable(v.code)}
+                title={v.desc}
+                className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-800 hover:text-emerald-900 border border-emerald-300 hover:border-emerald-500 font-mono text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <span className="text-emerald-600 font-black">+</span>
+                <span>{v.code}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-500 font-marathi-sub border-t border-slate-200">
+            <div>• <strong>&#123;Student Name&#125;</strong>: विद्यार्थ्याचे प्रत्यक्ष नाव</div>
+            <div>• <strong>&#123;Registration ID&#125;</strong>: युनिक रजिस्ट्रेशन क्रमांक</div>
+            <div>• <strong>&#123;Course Date&#125;</strong>: निवडलेली बॅच तारीख</div>
+            <div>• <strong>&#123;Selected Slot&#125;</strong>: निवडलेली क्लास वेळ</div>
+            <div className="sm:col-span-2">• <strong>&#123;WhatsApp Community Link&#125;</strong>: ॲडमिन सेटिंग्जमधील सेव्ह केलेली अधिकृत लिंक (ऑटोमॅटिक घेतली जाते)</div>
+          </div>
+        </div>
+
+        {/* Buttons for Card 2 */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <button
+            id="btn-preview-message"
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 text-slate-800 font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+          >
+            {showPreview ? <EyeOff className="w-4 h-4 text-slate-500" /> : <Eye className="w-4 h-4 text-blue-600" />}
+            <span>{showPreview ? 'Hide Preview' : 'Preview Message'}</span>
           </button>
 
           <button
-            type="submit"
-            disabled={isSaving}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition shadow-xs cursor-pointer disabled:opacity-50 font-poppins"
+            id="btn-save-message-template"
+            type="button"
+            disabled={isSavingTemplate}
+            onClick={handleSaveTemplate}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-black text-xs uppercase tracking-wider transition shadow-sm cursor-pointer disabled:opacity-50 font-poppins"
           >
-            <Save className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'Saving Changes...' : 'Save WhatsApp Settings'}</span>
+            <Save className="w-4 h-4" />
+            <span>{isSavingTemplate ? 'Saving Template...' : 'Save Message Template'}</span>
           </button>
         </div>
-      </form>
+
+        {/* Realistic Live Preview Box */}
+        {showPreview && (
+          <div
+            id="box-message-preview"
+            className="p-4 sm:p-5 rounded-2xl bg-slate-950 text-white space-y-3 shadow-md border border-slate-800 animate-in fade-in"
+          >
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Live WhatsApp Message Preview (Sample: Nikita)</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={copyPreviewToClipboard}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-lg transition"
+              >
+                {copiedPreview ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedPreview ? 'Copied Preview!' : 'Copy Preview'}</span>
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-emerald-300 font-mono text-xs sm:text-sm whitespace-pre-wrap leading-relaxed shadow-inner">
+              {getRenderedPreview()}
+            </div>
+            
+            <p className="text-[10px] text-slate-400 italic">
+              * सर्व नोंदणी डेटा व सेव्ह केलेली WhatsApp Community लिंक वरीलप्रमाणे स्वयंचलितरित्या बदलली जाते.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================== */}
+      {/* CARD 3: Additional WhatsApp Support Numbers (Preserved)  */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowExtraSettings(!showExtraSettings)}
+          className="w-full p-4 text-left flex items-center justify-between hover:bg-stone-50 transition cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              Additional Settings (Admin Support Number & Backup Group)
+            </span>
+          </div>
+          {showExtraSettings ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
+
+        {showExtraSettings && (
+          <div className="p-5 border-t border-stone-100 bg-stone-50/50 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Admin Support WhatsApp Number
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
+                  <input
+                    type="text"
+                    value={adminNumber}
+                    onChange={(e) => setAdminNumber(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 text-xs bg-white border border-stone-300 rounded-lg outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Backup WhatsApp Group Link
+                </label>
+                <input
+                  type="url"
+                  value={groupLink}
+                  onChange={(e) => setGroupLink(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-stone-300 rounded-lg outline-none font-mono"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveCommunityLink}
+              className="px-4 py-2 rounded-lg bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold cursor-pointer"
+            >
+              Save Additional Settings
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

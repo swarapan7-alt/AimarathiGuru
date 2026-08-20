@@ -46,7 +46,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const defaultFormattedMsg = `नमस्कार ${registration.fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${registration.id}\nCourse Date: ${registration.courseDateDisplay}\nTime Slot: ${registration.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक WhatsApp Community मधून दिली जाईल.\n\nधन्यवाद,\nAI Marathi Guru`;
+  const defaultFormattedMsg = `नमस्कार ${registration.fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${registration.id}\nCourse Date: ${registration.courseDateDisplay}\nTime Slot: ${registration.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n${communityLink}\n\nधन्यवाद,\nAI Marathi Guru`;
   const effectiveWhatsAppMsg = whatsappMessage || defaultFormattedMsg;
 
   const handleWhatsAppRedirect = () => {
