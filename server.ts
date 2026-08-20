@@ -667,7 +667,12 @@ function authenticateAdmin(req: express.Request, res: express.Response, next: ex
 // PUBLIC API ROUTES
 // -----------------------------
 
-// 1. Health check
+// 0. Health Check for Hosting & Monitoring
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// 1. Detailed Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
