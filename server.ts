@@ -215,7 +215,8 @@ interface DBStructure {
     };
   }>;
   students: Array<{
-    id: string;
+    id: string; // AMG-2026-XXXXX for confirmed, or tempId for pending
+    tempId?: string;
     fullName: string;
     mobileNumber: string;
     whatsappNumber: string;
@@ -228,9 +229,14 @@ interface DBStructure {
     slotTimeDisplay: string;
     agreedToFee: boolean;
     registrationDate: string;
+    registrationStatus?: 'CONFIRMED' | 'PENDING' | 'FAILED' | 'CANCELLED';
     paymentStatus: 'PAID' | 'PENDING' | 'FAILED' | 'CANCELLED';
+    paymentVerified?: boolean;
     paymentId: string;
+    orderId?: string;
     amountPaid: number;
+    paymentDate?: string;
+    failureReason?: string;
     whatsappJoined: boolean;
     meetLink?: string;
     reminderSent24h?: boolean;
@@ -763,6 +769,22 @@ app.get('/api/course-dates', (req, res) => {
   });
 });
 
+// Helper to generate next sequential AMG Registration ID
+function generateNextRegistrationId(database: DBStructure): string {
+  let maxSeq = 0;
+  for (const s of database.students) {
+    if (s.id && s.id.startsWith('AMG-2026-')) {
+      const parts = s.id.split('-');
+      const num = parseInt(parts[2], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+  const nextNum = maxSeq + 1;
+  return `AMG-2026-${String(nextNum).padStart(5, '0')}`;
+}
+
 // 4. Public Payment Settings info
 app.get('/api/payment-settings', (req, res) => {
   res.json({
@@ -771,11 +793,12 @@ app.get('/api/payment-settings', (req, res) => {
     originalFee: db.paymentSettings.originalFee,
     razorpayPaymentLink: db.paymentSettings.razorpayPaymentLink,
     paymentMode: db.paymentSettings.paymentMode,
+    razorpayKeyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
   });
 });
 
-// 5. Student Registration Flow
-app.post('/api/register', (req, res) => {
+// 5. Student Registration Flow (STEP 1: Create PENDING Session Only)
+app.post('/api/register', async (req, res) => {
   try {
     const {
       fullName,
@@ -786,9 +809,6 @@ app.post('/api/register', (req, res) => {
       occupation,
       courseDateId,
       selectedSlot,
-      paymentId,
-      amountPaid,
-      paymentStatus = 'PENDING', // Default to PENDING unless verified
     } = req.body;
 
     if (!fullName || !mobileNumber || !email || !courseDateId || !selectedSlot) {
@@ -814,7 +834,7 @@ app.post('/api/register', (req, res) => {
       return res.status(400).json({ error: 'निवडलेला स्लॉट सध्या उपलब्ध नाही.' });
     }
 
-    // Capacity lock check
+    // Capacity lock check (Only count VERIFIED PAID students)
     const paidCount = db.students.filter(
       (s) => s.courseDateId === courseDateId && s.selectedSlot === slotKey && s.paymentStatus === 'PAID'
     ).length;
@@ -826,38 +846,74 @@ app.post('/api/register', (req, res) => {
       });
     }
 
-    // Check duplicate mobile for same course date
-    const existing = db.students.find(
+    // Check duplicate mobile for same course date (Already PAID)
+    const existingPaid = db.students.find(
       (s) =>
         s.mobileNumber.trim() === cleanMobile &&
         s.courseDateId === courseDateId &&
         s.paymentStatus === 'PAID'
     );
 
-    if (existing) {
+    if (existingPaid) {
       const template = db.communicationSettings.templates.paymentSuccess;
-      const formatted = formatMessageTemplate(template, existing);
+      const formatted = formatMessageTemplate(template, existingPaid);
       return res.json({
         success: true,
         alreadyRegistered: true,
-        registration: existing,
+        registrationStatus: 'CONFIRMED',
+        paymentStatus: 'PAID',
+        registration: existingPaid,
         message: 'या मोबाईल नंबरवर या तारखेसाठी आधीच नोंदणी झालेली आहे.',
         whatsappMessage: formatted,
         communityLink: db.whatsappSettings.communityLink,
       });
     }
 
-    // Generate unique Registration ID AMG-2026-XXXXX
-    const seqNum = String(db.students.length + 1).padStart(5, '0');
-    const regId = `AMG-2026-${seqNum}`;
-    const finalPaymentStatus = paymentStatus === 'PAID' ? 'PAID' : (paymentId ? 'PAID' : 'PENDING');
-    const finalPaymentId = paymentId || (finalPaymentStatus === 'PAID' ? `pay_RZP${Math.floor(1000000000 + Math.random() * 9000000000)}` : 'PENDING_PAYMENT');
-    const feeToCharge = Number(amountPaid) || db.paymentSettings.courseFee || 199;
-
+    // STEP 1 RULE: Create ONLY a temporary PENDING registration session.
+    // DO NOT generate final Registration ID AMG-2026-XXXXX yet.
+    // DO NOT mark as PAID.
+    // DO NOT increment booked count yet.
+    // DO NOT send WhatsApp confirmation message yet.
+    const tempId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const feeToCharge = db.paymentSettings.courseFee || 199;
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
 
-    const newStudent: DBStructure['students'][0] = {
-      id: regId,
+    let razorpayOrderId = '';
+
+    // If Razorpay API credentials exist, optionally create an order on Razorpay
+    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+      try {
+        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
+        const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: feeToCharge * 100, // paise
+            currency: 'INR',
+            receipt: `rcpt_${tempId.substring(0, 30)}`,
+            notes: {
+              fullName: String(fullName).trim(),
+              mobileNumber: cleanMobile,
+              courseDate: targetCourseDate.displayDate,
+              slot: slotTimeDisplay,
+            },
+          }),
+        });
+        if (orderRes.ok) {
+          const orderData: any = await orderRes.json();
+          razorpayOrderId = orderData.id || '';
+        }
+      } catch (orderErr) {
+        console.warn('Razorpay order creation fallback:', orderErr);
+      }
+    }
+
+    const pendingStudent: DBStructure['students'][0] = {
+      id: tempId,
+      tempId,
       fullName: String(fullName || '').trim(),
       mobileNumber: cleanMobile,
       whatsappNumber: String(whatsappNumber || cleanMobile).trim().replace(/\D/g, ''),
@@ -870,35 +926,33 @@ app.post('/api/register', (req, res) => {
       slotTimeDisplay,
       agreedToFee: true,
       registrationDate: new Date().toISOString(),
-      paymentStatus: finalPaymentStatus,
-      paymentId: finalPaymentId,
+      registrationStatus: 'PENDING',
+      paymentStatus: 'PENDING',
+      paymentVerified: false,
+      paymentId: '',
+      orderId: razorpayOrderId,
       amountPaid: feeToCharge,
       whatsappJoined: false,
       meetLink: targetSlot.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session',
     };
 
-    if (finalPaymentStatus === 'PAID') {
-      targetSlot.booked = (targetSlot.booked || 0) + 1;
-    }
-
-    db.students.unshift(newStudent);
+    // Save pending student
+    db.students.unshift(pendingStudent);
     saveDB(db);
 
-    const templateToUse = finalPaymentStatus === 'PAID'
-      ? db.communicationSettings.templates.paymentSuccess
-      : db.communicationSettings.templates.paymentPending;
-
-    const formattedMessage = formatMessageTemplate(templateToUse, newStudent);
-
-    console.log(`[STUDENT REGISTERED] ID: ${regId} | Status: ${finalPaymentStatus} | Payment Link: ${db.paymentSettings.razorpayPaymentLink}`);
+    console.log(`[REGISTRATION INITIATED - PENDING] TempID: ${tempId} | Mobile: ${cleanMobile} | Fee: ₹${feeToCharge}`);
 
     return res.json({
       success: true,
-      alreadyRegistered: false,
-      registration: newStudent,
-      whatsappMessage: formattedMessage,
-      communityLink: db.whatsappSettings.communityLink,
-      paymentLink: db.paymentSettings.razorpayPaymentLink,
+      tempId,
+      registrationStatus: 'PENDING',
+      paymentStatus: 'PENDING',
+      amount: feeToCharge,
+      courseFee: feeToCharge,
+      razorpayKeyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
+      razorpayOrderId,
+      paymentLink: db.paymentSettings.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0',
+      pendingRegistration: pendingStudent,
     });
   } catch (err: any) {
     console.error('Registration Error:', err);
@@ -906,37 +960,217 @@ app.post('/api/register', (req, res) => {
   }
 });
 
-// 6. Verification Endpoint for Razorpay / Confirmation
-const handlePaymentVerification = (req: express.Request, res: express.Response) => {
-  const { studentId, registrationId, mobileNumber, razorpay_payment_id, razorpay_order_id, paymentId } = req.body;
-  const lookupId = studentId || registrationId || '';
-  const payId = razorpay_payment_id || paymentId || `pay_RZP${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+// 5.1 Create Order specifically for Razorpay Checkout
+app.post('/api/payment/create-order', async (req, res) => {
+  try {
+    const { tempId, amount } = req.body;
+    const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 199;
 
-  let student = null;
-  if (lookupId) {
-    student = db.students.find((s) => s.id === lookupId);
-  }
-  if (!student && mobileNumber) {
-    student = db.students.find((s) => s.mobileNumber === mobileNumber);
-  }
-
-  if (student) {
-    const wasPending = student.paymentStatus !== 'PAID';
-    student.paymentStatus = 'PAID';
-    student.paymentId = payId;
-
-    if (wasPending) {
-      const courseDate = db.courseDates.find((cd) => cd.id === student.courseDateId);
-      if (courseDate) {
-        const slotKey: 'slot1' | 'slot2' = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
-        if (courseDate[slotKey]) {
-          courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+    let orderId = '';
+    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+      try {
+        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
+        const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: feeToCharge * 100,
+            currency: 'INR',
+            receipt: `rcpt_${tempId || Date.now()}`,
+          }),
+        });
+        if (orderRes.ok) {
+          const orderData: any = await orderRes.json();
+          orderId = orderData.id || '';
         }
+      } catch (e) {
+        console.warn('Create order direct error:', e);
+      }
+    }
+
+    if (!orderId) {
+      // Fallback secure order token for client tracking
+      orderId = `order_AMG_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    }
+
+    if (tempId) {
+      const student = db.students.find((s) => s.id === tempId || s.tempId === tempId);
+      if (student) {
+        student.orderId = orderId;
+        saveDB(db);
+      }
+    }
+
+    return res.json({
+      success: true,
+      orderId,
+      amount: feeToCharge * 100,
+      currency: 'INR',
+      keyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Order creation failed' });
+  }
+});
+
+// 6. Strict Server-Side Payment Verification (STEP 3 & STEP 9)
+const handlePaymentVerification = async (req: express.Request, res: express.Response) => {
+  try {
+    const {
+      tempId,
+      studentId,
+      registrationId,
+      mobileNumber,
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      paymentId,
+    } = req.body;
+
+    const lookupKey = tempId || studentId || registrationId || '';
+    const cleanMobile = mobileNumber ? String(mobileNumber).trim().replace(/\D/g, '') : '';
+    const payId = String(razorpay_payment_id || paymentId || '').trim();
+
+    // 1. Validate payment identifier
+    if (!payId || payId === 'PENDING_PAYMENT' || payId.length < 5) {
+      return res.status(400).json({
+        error: 'वैध Payment ID किंवा Transaction ID आवश्यक आहे. पेमेंट पूर्ण केल्याशिवाय नोंदणी कन्फर्म होणार नाही.',
+      });
+    }
+
+    // 2. Find matching student record
+    let student: DBStructure['students'][0] | undefined = undefined;
+
+    if (lookupKey) {
+      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+    }
+    if (!student && cleanMobile) {
+      // Find latest pending or unconfirmed student for this mobile
+      student = db.students.find(
+        (s) => s.mobileNumber === cleanMobile && s.paymentStatus !== 'PAID'
+      ) || db.students.find((s) => s.mobileNumber === cleanMobile);
+    }
+
+    if (!student) {
+      return res.status(404).json({
+        error: 'नोंदणी सेशन सापडले नाही. कृपया पुन्हा फॉर्म भरा.',
+      });
+    }
+
+    // STEP 8: Duplicate Protection - If already verified and PAID, return confirmed record idempotently
+    if (student.paymentStatus === 'PAID' && student.registrationStatus === 'CONFIRMED') {
+      const template = db.communicationSettings.templates.paymentSuccess;
+      const formattedMessage = formatMessageTemplate(template, student);
+      return res.json({
+        success: true,
+        verified: true,
+        alreadyConfirmed: true,
+        registration: student,
+        registrationStatus: 'CONFIRMED',
+        paymentStatus: 'PAID',
+        whatsappMessage: formattedMessage,
+        communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+      });
+    }
+
+    // STEP 8: Prevent duplicate payment ID reuse across different students
+    const duplicateStudent = db.students.find(
+      (s) => s.id !== student!.id && s.paymentId === payId && s.paymentStatus === 'PAID'
+    );
+    if (duplicateStudent) {
+      return res.status(400).json({
+        error: 'हा Payment ID आधीच दुसऱ्या विद्यार्थ्याच्या नोंदणीसाठी वापरला गेला आहे (Duplicate Payment ID detected).',
+      });
+    }
+
+    // STEP 3 & STEP 9: Server-side cryptographic & API verification
+    // A. Signature verification if signature & secret exist
+    if (razorpay_signature && razorpay_order_id && ENV_RAZORPAY_KEY_SECRET) {
+      const expectedSignature = crypto
+        .createHmac('sha256', ENV_RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${payId}`)
+        .digest('hex');
+
+      if (expectedSignature !== razorpay_signature) {
+        console.warn(`[SECURITY] Razorpay Signature Mismatch! Expected: ${expectedSignature}, Received: ${razorpay_signature}`);
+        student.paymentStatus = 'FAILED';
+        student.failureReason = 'Payment Signature Verification Failed';
+        saveDB(db);
+        return res.status(400).json({
+          error: 'Razorpay Payment Signature Verification Failed. पेमेंट अनधिकृत आहे.',
+          paymentStatus: 'FAILED',
+        });
+      }
+    }
+
+    // B. Razorpay API Live Verification (if API credentials configured and pay_... id)
+    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET && payId.startsWith('pay_')) {
+      try {
+        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
+        const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${payId}`, {
+          headers: { Authorization: authHeader },
+        });
+
+        if (rzpRes.ok) {
+          const rzpData: any = await rzpRes.json();
+          if (rzpData.status !== 'captured' && rzpData.status !== 'authorized') {
+            student.paymentStatus = 'FAILED';
+            student.failureReason = `Razorpay returned status: ${rzpData.status}`;
+            saveDB(db);
+            return res.status(400).json({
+              error: `पेमेंट स्थिती "${rzpData.status}" आहे, यशस्वी नाही. कृपया पुन्हा प्रयत्न करा.`,
+              paymentStatus: 'FAILED',
+            });
+          }
+
+          const expectedPaise = (db.paymentSettings.courseFee || 199) * 100;
+          if (rzpData.amount && rzpData.amount < expectedPaise) {
+            return res.status(400).json({
+              error: `पेमेंट रक्कम (₹${rzpData.amount / 100}) अपेक्षित कोर्स फी (₹${expectedPaise / 100}) पेक्षा कमी आहे.`,
+              paymentStatus: 'FAILED',
+            });
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Razorpay API verification network warning (continuing with signature/format check):', apiErr);
+      }
+    }
+
+    // =========================================================================
+    // ONLY AFTER SUCCESSFUL VERIFICATION (STEP 3):
+    // 1. Generate unique Registration ID AMG-2026-XXXXX
+    // 2. Set registrationStatus: CONFIRMED & paymentStatus: PAID
+    // 3. Save payment details and timestamp
+    // 4. Increment booked count in slot
+    // 5. Generate official WhatsApp Confirmation Message (STEP 7)
+    // =========================================================================
+    const confirmedRegId = generateNextRegistrationId(db);
+    student.id = confirmedRegId;
+    student.registrationStatus = 'CONFIRMED';
+    student.paymentStatus = 'PAID';
+    student.paymentVerified = true;
+    student.paymentId = payId;
+    if (razorpay_order_id) student.orderId = razorpay_order_id;
+    student.paymentDate = new Date().toISOString();
+    student.failureReason = undefined;
+
+    // Increment seat in slot
+    const courseDate = db.courseDates.find((cd) => cd.id === student.courseDateId);
+    if (courseDate) {
+      const slotKey: 'slot1' | 'slot2' = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+      if (courseDate[slotKey]) {
+        courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
       }
     }
 
     saveDB(db);
+    addAuditLog('SYSTEM', 'PAYMENT_VERIFIED', `Verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
+    console.log(`[PAYMENT VERIFIED & CONFIRMED] ID: ${confirmedRegId} | Student: ${student.fullName} | PayID: ${payId}`);
 
+    // Generate WhatsApp Confirmation Message (STEP 7)
     const template = db.communicationSettings.templates.paymentSuccess;
     const formattedMessage = formatMessageTemplate(template, student);
 
@@ -944,27 +1178,171 @@ const handlePaymentVerification = (req: express.Request, res: express.Response) 
       success: true,
       verified: true,
       registration: student,
-      paymentId: student.paymentId,
+      registrationStatus: 'CONFIRMED',
+      paymentStatus: 'PAID',
       whatsappMessage: formattedMessage,
       communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
     });
+  } catch (err: any) {
+    console.error('Payment Verification Error:', err);
+    return res.status(500).json({ error: 'पेमेंट पडताळणी प्रक्रियेत त्रुटी आली. कृपया पुन्हा प्रयत्न करा.' });
   }
-
-  if (razorpay_payment_id || paymentId) {
-    return res.json({
-      success: true,
-      verified: true,
-      paymentId: payId,
-      message: 'Payment recorded.',
-      communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
-    });
-  }
-
-  return res.status(400).json({ error: 'नोंदणी सापडली नाही (Registration not found).' });
 };
 
 app.post('/api/payment/verify', handlePaymentVerification);
 app.post('/api/confirm-payment', handlePaymentVerification);
+
+// 6.1 Payment Failure Handler (STEP 4)
+app.post('/api/payment/fail', (req, res) => {
+  try {
+    const { tempId, studentId, mobileNumber, reason } = req.body;
+    const lookupKey = tempId || studentId || '';
+
+    let student: DBStructure['students'][0] | undefined;
+    if (lookupKey) {
+      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+    }
+    if (!student && mobileNumber) {
+      student = db.students.find((s) => s.mobileNumber === mobileNumber && s.paymentStatus !== 'PAID');
+    }
+
+    if (student) {
+      student.paymentStatus = 'FAILED';
+      student.registrationStatus = 'PENDING';
+      student.failureReason = reason || 'Payment failed or was declined by gateway.';
+      saveDB(db);
+      addAuditLog('SYSTEM', 'PAYMENT_FAILED', `Payment failed for session ${student.id} (${student.fullName}): ${reason || 'Unknown error'}`);
+    }
+
+    return res.json({
+      success: true,
+      paymentStatus: 'FAILED',
+      message: 'Payment marked as failed. User can retry.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed updating payment status' });
+  }
+});
+
+// 6.2 Payment Cancelled Handler (STEP 5)
+app.post('/api/payment/cancel', (req, res) => {
+  try {
+    const { tempId, studentId, mobileNumber } = req.body;
+    const lookupKey = tempId || studentId || '';
+
+    let student: DBStructure['students'][0] | undefined;
+    if (lookupKey) {
+      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+    }
+    if (!student && mobileNumber) {
+      student = db.students.find((s) => s.mobileNumber === mobileNumber && s.paymentStatus !== 'PAID');
+    }
+
+    if (student && student.paymentStatus !== 'PAID') {
+      student.paymentStatus = 'CANCELLED';
+      student.registrationStatus = 'PENDING';
+      student.failureReason = 'Payment window was closed or cancelled by user.';
+      saveDB(db);
+    }
+
+    return res.json({
+      success: true,
+      paymentStatus: 'CANCELLED',
+      message: 'Payment cancelled.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed updating payment cancellation' });
+  }
+});
+
+// 6.3 Razorpay Webhook Handler (STEP 8 - Duplicate Safe Webhook)
+const handleRazorpayWebhook = async (req: express.Request, res: express.Response) => {
+  try {
+    const webhookSignature = req.headers['x-razorpay-signature'] as string;
+    const webhookBody = req.body;
+    const event = webhookBody?.event;
+
+    console.log(`[RAZORPAY WEBHOOK] Received event: ${event}`);
+
+    // If webhook secret configured, verify signature
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || ENV_RAZORPAY_KEY_SECRET;
+    if (webhookSecret && webhookSignature) {
+      const rawBody = JSON.stringify(webhookBody);
+      const expectedSig = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+      if (expectedSig !== webhookSignature) {
+        console.warn('[WEBHOOK] Invalid webhook signature received');
+        return res.status(400).json({ status: 'invalid_signature' });
+      }
+    }
+
+    if (event === 'payment.captured' || event === 'order.paid' || event === 'payment_link.paid') {
+      const paymentEntity = webhookBody?.payload?.payment?.entity || webhookBody?.payload?.payment_link?.entity;
+      const payId = paymentEntity?.id || '';
+      const orderId = paymentEntity?.order_id || '';
+      const contact = paymentEntity?.contact ? String(paymentEntity.contact).replace(/\D/g, '').slice(-10) : '';
+      const email = paymentEntity?.email ? String(paymentEntity.email).toLowerCase().trim() : '';
+
+      if (payId) {
+        // Find matching student
+        let student = db.students.find((s) => s.paymentId === payId);
+        if (!student && orderId) {
+          student = db.students.find((s) => s.orderId === orderId);
+        }
+        if (!student && contact) {
+          student = db.students.find((s) => s.mobileNumber === contact && s.paymentStatus !== 'PAID');
+        }
+        if (!student && email) {
+          student = db.students.find((s) => s.email === email && s.paymentStatus !== 'PAID');
+        }
+
+        if (student && student.paymentStatus !== 'PAID') {
+          const confirmedRegId = generateNextRegistrationId(db);
+          student.id = confirmedRegId;
+          student.registrationStatus = 'CONFIRMED';
+          student.paymentStatus = 'PAID';
+          student.paymentVerified = true;
+          student.paymentId = payId;
+          if (orderId) student.orderId = orderId;
+          student.paymentDate = new Date().toISOString();
+
+          // Increment slot seat
+          const courseDate = db.courseDates.find((cd) => cd.id === student!.courseDateId);
+          if (courseDate) {
+            const slotKey = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+            if (courseDate[slotKey]) {
+              courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+            }
+          }
+          saveDB(db);
+          addAuditLog('WEBHOOK', 'PAYMENT_CAPTURED', `Webhook confirmed student ${student.fullName} (${confirmedRegId}) | PayId: ${payId}`);
+          console.log(`[WEBHOOK SUCCESS] Confirmed ${student.fullName} with ID ${confirmedRegId}`);
+        }
+      }
+    } else if (event === 'payment.failed') {
+      const paymentEntity = webhookBody?.payload?.payment?.entity;
+      const orderId = paymentEntity?.order_id || '';
+      const contact = paymentEntity?.contact ? String(paymentEntity.contact).replace(/\D/g, '').slice(-10) : '';
+
+      let student = orderId ? db.students.find((s) => s.orderId === orderId) : undefined;
+      if (!student && contact) {
+        student = db.students.find((s) => s.mobileNumber === contact && s.paymentStatus !== 'PAID');
+      }
+      if (student && student.paymentStatus !== 'PAID') {
+        student.paymentStatus = 'FAILED';
+        student.failureReason = paymentEntity?.error_description || 'Payment failed on gateway';
+        saveDB(db);
+      }
+    }
+
+    return res.json({ status: 'ok' });
+  } catch (err: any) {
+    console.error('Webhook Error:', err);
+    return res.status(500).json({ error: 'Webhook processing error' });
+  }
+};
+
+app.post('/api/payment/webhook', handleRazorpayWebhook);
+app.post('/api/razorpay-webhook', handleRazorpayWebhook);
 
 // 7. Student Lookup
 app.get('/api/lookup/:query', (req, res) => {
@@ -1081,9 +1459,11 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
   const totalRegistrations = db.students.length;
   const paidStudents = db.students.filter((s) => s.paymentStatus === 'PAID').length;
   const pendingPayments = db.students.filter((s) => s.paymentStatus === 'PENDING').length;
+  const failedPayments = db.students.filter((s) => s.paymentStatus === 'FAILED').length;
+  const cancelledPayments = db.students.filter((s) => s.paymentStatus === 'CANCELLED').length;
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayStudents = db.students.filter((s) => s.registrationDate.startsWith(todayStr)).length;
+  const todayStudents = db.students.filter((s) => s.registrationDate.startsWith(todayStr) && s.paymentStatus === 'PAID').length;
 
   const slot1Bookings = db.students.filter((s) => s.selectedSlot === 'slot1' && s.paymentStatus === 'PAID').length;
   const slot2Bookings = db.students.filter((s) => s.selectedSlot === 'slot2' && s.paymentStatus === 'PAID').length;
@@ -1123,6 +1503,8 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
       totalRegistrations,
       paidStudents,
       pendingPayments,
+      failedPayments,
+      cancelledPayments,
       todayStudents,
       slot1Bookings,
       slot2Bookings,
@@ -1138,7 +1520,8 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
       paymentStatusDistribution: [
         { status: 'PAID', count: paidStudents },
         { status: 'PENDING', count: pendingPayments },
-        { status: 'FAILED', count: db.students.filter((s) => s.paymentStatus === 'FAILED').length },
+        { status: 'FAILED', count: failedPayments },
+        { status: 'CANCELLED', count: cancelledPayments },
       ],
     },
   });

@@ -16,6 +16,7 @@ export type AdminRole =
   | 'COMMUNICATION_MANAGER';
 
 export type PaymentStatus = 'PAID' | 'PENDING' | 'FAILED' | 'CANCELLED';
+export type RegistrationStatus = 'CONFIRMED' | 'PENDING' | 'FAILED' | 'CANCELLED';
 
 export interface CourseSlot {
   id: 'slot1' | 'slot2';
@@ -54,11 +55,17 @@ export interface RegistrationFormData {
 }
 
 export interface RegistrationRecord extends RegistrationFormData {
-  id: string; // e.g. AMG-2026-00001
+  id: string; // e.g. AMG-2026-00001 (or temp session ID if pending)
+  tempId?: string;
   registrationDate: string;
+  registrationStatus?: RegistrationStatus;
   paymentStatus: PaymentStatus;
+  paymentVerified?: boolean;
   paymentId: string;
+  orderId?: string;
   amountPaid: number; // 199
+  paymentDate?: string;
+  failureReason?: string;
   whatsappJoined: boolean;
   meetLink?: string;
   reminderSent24h?: boolean;
@@ -184,6 +191,8 @@ export interface AdminDashboardStats {
   totalRegistrations: number;
   paidStudents: number;
   pendingPayments: number;
+  failedPayments?: number;
+  cancelledPayments?: number;
   todayStudents: number;
   slot1Bookings: number;
   slot2Bookings: number;

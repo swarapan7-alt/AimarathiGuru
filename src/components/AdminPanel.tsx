@@ -99,20 +99,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     setAdminUser(null);
   };
 
-  const handleUpdateStudentStatus = async (id: string, newStatus: 'PAID' | 'PENDING' | 'FAILED') => {
+  const handleUpdateStudentStatus = async (id: string, newStatus: 'PAID' | 'PENDING' | 'FAILED' | 'CANCELLED', newRegStatus?: 'CONFIRMED' | 'PENDING' | 'FAILED' | 'CANCELLED') => {
     try {
+      const regStatus = newRegStatus || (newStatus === 'PAID' ? 'CONFIRMED' : 'PENDING');
       const res = await fetch(`/api/admin/students/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ paymentStatus: newStatus }),
+        body: JSON.stringify({
+          paymentStatus: newStatus,
+          registrationStatus: regStatus,
+          paymentVerified: newStatus === 'PAID',
+        }),
       });
 
       if (res.ok) {
         setStudents((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, paymentStatus: newStatus } : s))
+          prev.map((s) => (s.id === id ? { ...s, paymentStatus: newStatus, registrationStatus: regStatus, paymentVerified: newStatus === 'PAID' } : s))
         );
         loadAllAdminData();
       }
