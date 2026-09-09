@@ -82,7 +82,7 @@
       "registrationDate": "2026-08-16T10:18:30.353Z",
       "paymentStatus": "PAID",
       "paymentId": "pay_RZP6004314899",
-      "amountPaid": 199,
+      "amountPaid": 99,
       "whatsappJoined": false,
       "meetLink": "https://meet.google.com/amg-aug23-slot1"
     },
@@ -102,7 +102,7 @@
       "registrationDate": "2026-08-16T08:59:51.331Z",
       "paymentStatus": "PAID",
       "paymentId": "pay_RZP819204128",
-      "amountPaid": 199,
+      "amountPaid": 99,
       "whatsappJoined": true,
       "meetLink": "https://meet.google.com/amg-slot1-live"
     },
@@ -122,13 +122,13 @@
       "registrationDate": "2026-08-16T08:59:51.331Z",
       "paymentStatus": "PAID",
       "paymentId": "pay_RZP981042711",
-      "amountPaid": 199,
+      "amountPaid": 99,
       "whatsappJoined": false,
       "meetLink": "https://meet.google.com/amg-slot2-live"
     }
   ],
   "paymentSettings": {
-    "courseFee": 199,
+    "courseFee": 99,
     "originalFee": 999,
     "razorpayPaymentLink": "https://rzp.io/rzp/gAmUJOS0",
     "paymentMode": "both",
@@ -168,13 +168,13 @@
   },
   "siteSettings": {
     "courseName": "AI Marathi Guru",
-    "courseFee": 199,
+    "courseFee": 99,
     "oldPrice": 999,
     "heroHeading": "आता AI मराठीत शिका!",
     "heroSubtitle": "AI शिका. व्यवसाय वाढवा. भविष्य घडवा.",
     "contactNumber": "9801555171",
     "contactEmail": "contact@swaraudyog.com",
-    "ctaText": "₹199 मध्ये आजच Register करा",
+    "ctaText": "फक्त ₹99 मध्ये Join करा",
     "websiteUrl": "https://aimarathi.swaraudyog.com",
     "instagramLink": "https://instagram.com/aimarathiguru",
     "youtubeLink": "https://youtube.com/aimarathiguru",
@@ -424,7 +424,7 @@
       "timestamp": "2026-08-16T11:33:15.353Z",
       "adminUsername": "admin",
       "action": "UPDATE_PAYMENT_SETTINGS",
-      "details": "Updated Payment Settings: Fee ₹199, Link: https://rzp.io/rzp/gAmUJOS0"
+      "details": "Updated Payment Settings: Fee ₹99, Link: https://rzp.io/rzp/gAmUJOS0"
     },
     {
       "id": "log_1786874481383_566",

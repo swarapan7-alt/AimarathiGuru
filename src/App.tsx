@@ -36,7 +36,7 @@ export default function App() {
 
   // Dynamic Content loaded from backend with persistent instant local storage cache
   const [courseDates, setCourseDates] = useState<CourseDateRecord[]>([]);
-  const [courseFee, setCourseFee] = useState(199);
+  const [courseFee, setCourseFee] = useState(99);
   const [siteSettings, setSiteSettings] = useState<Partial<SiteSettings>>(() => {
     try {
       const cached = localStorage.getItem('amg_cached_site_settings');

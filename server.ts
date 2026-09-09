@@ -422,7 +422,7 @@ function loadDB(): DBStructure {
         registrationDate: new Date().toISOString(),
         paymentStatus: 'PAID',
         paymentId: 'pay_RZP819204128',
-        amountPaid: 199,
+        amountPaid: 99,
         whatsappJoined: true,
         meetLink: 'https://meet.google.com/amg-slot1-live',
       },
@@ -442,13 +442,13 @@ function loadDB(): DBStructure {
         registrationDate: new Date().toISOString(),
         paymentStatus: 'PAID',
         paymentId: 'pay_RZP981042711',
-        amountPaid: 199,
+        amountPaid: 99,
         whatsappJoined: false,
         meetLink: 'https://meet.google.com/amg-slot2-live',
       },
     ],
     paymentSettings: {
-      courseFee: existingData?.paymentSettings?.courseFee || existingData?.siteSettings?.courseFee || 199,
+      courseFee: existingData?.paymentSettings?.courseFee || existingData?.siteSettings?.courseFee || 99,
       originalFee: existingData?.paymentSettings?.originalFee || existingData?.siteSettings?.oldPrice || 999,
       razorpayPaymentLink: existingData?.paymentSettings?.razorpayPaymentLink || 'https://rzp.io/l/ai-marathi-guru',
       paymentMode: existingData?.paymentSettings?.paymentMode || 'both',
@@ -481,13 +481,13 @@ function loadDB(): DBStructure {
     },
     siteSettings: {
       courseName: existingData?.siteSettings?.courseName || 'AI Marathi Guru',
-      courseFee: existingData?.siteSettings?.courseFee || 199,
+      courseFee: existingData?.siteSettings?.courseFee || 99,
       oldPrice: existingData?.siteSettings?.oldPrice || 999,
       heroHeading: existingData?.siteSettings?.heroHeading || 'आता AI मराठीत शिका!',
       heroSubtitle: existingData?.siteSettings?.heroSubtitle || 'AI शिका. व्यवसाय वाढवा. भविष्य घडवा.',
       contactNumber: existingData?.siteSettings?.contactNumber || '9801555171',
       contactEmail: existingData?.siteSettings?.contactEmail || 'contact@swaraudyog.com',
-      ctaText: existingData?.siteSettings?.ctaText || '₹199 मध्ये आजच Register करा',
+      ctaText: existingData?.siteSettings?.ctaText || 'फक्त ₹99 मध्ये Join करा',
       websiteUrl: existingData?.siteSettings?.websiteUrl || 'https://aimarathi.swaraudyog.com',
       instagramLink: existingData?.siteSettings?.instagramLink || 'https://instagram.com/aimarathiguru',
       youtubeLink: existingData?.siteSettings?.youtubeLink || 'https://youtube.com/aimarathiguru',
@@ -584,7 +584,7 @@ function formatMessageTemplate(template: string, student: any, extra?: Record<st
   const courseDate = student?.courseDateDisplay || '';
   const slotTime = student?.slotTimeDisplay || '';
   const paymentStatus = student?.paymentStatus || 'PAID';
-  const courseFee = String(student?.amountPaid || db.paymentSettings?.courseFee || 199);
+  const courseFee = String(student?.amountPaid || db.paymentSettings?.courseFee || 99);
   const meetLink =
     student?.meetLink || db.liveSessionSettings?.googleMeetLink || 'https://meet.google.com/amg-live-session';
   const paymentLink = db.paymentSettings?.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0';
@@ -875,7 +875,7 @@ app.post('/api/register', async (req, res) => {
     // DO NOT increment booked count yet.
     // DO NOT send WhatsApp confirmation message yet.
     const tempId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const feeToCharge = db.paymentSettings.courseFee || 199;
+    const feeToCharge = db.paymentSettings.courseFee || 99;
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
 
     let razorpayOrderId = '';
@@ -964,7 +964,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/payment/create-order', async (req, res) => {
   try {
     const { tempId, amount } = req.body;
-    const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 199;
+    const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 99;
 
     let orderId = '';
     if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
@@ -1126,7 +1126,7 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
             });
           }
 
-          const expectedPaise = (db.paymentSettings.courseFee || 199) * 100;
+          const expectedPaise = (db.paymentSettings.courseFee || 99) * 100;
           if (rzpData.amount && rzpData.amount < expectedPaise) {
             return res.status(400).json({
               error: `पेमेंट रक्कम (₹${rzpData.amount / 100}) अपेक्षित कोर्स फी (₹${expectedPaise / 100}) पेक्षा कमी आहे.`,
@@ -1470,7 +1470,7 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
 
   const totalRevenue = db.students
     .filter((s) => s.paymentStatus === 'PAID')
-    .reduce((sum, s) => sum + (s.amountPaid || db.paymentSettings.courseFee || 199), 0);
+    .reduce((sum, s) => sum + (s.amountPaid || db.paymentSettings.courseFee || 99), 0);
 
   const activeDates = db.courseDates.filter((cd) => cd.enabled);
   const upcomingCourseDate = activeDates.length > 0 ? activeDates[0].displayDate : 'Sunday, 23 August 2026';
@@ -1485,7 +1485,7 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
     }
     dateMap[dKey].count += 1;
     if (s.paymentStatus === 'PAID') {
-      dateMap[dKey].revenue += s.amountPaid || db.paymentSettings.courseFee || 199;
+      dateMap[dKey].revenue += s.amountPaid || db.paymentSettings.courseFee || 99;
     }
   });
 
@@ -2167,7 +2167,7 @@ app.get('/api/export-csv', (req, res) => {
     `"${(s.courseDateDisplay || '').replace(/"/g, '""')}"`,
     `"${(s.slotTimeDisplay || '').replace(/"/g, '""')}"`,
     s.paymentStatus,
-    s.amountPaid || 199,
+    s.amountPaid || 99,
     s.paymentId || 'N/A',
     new Date(s.registrationDate).toLocaleString('en-IN'),
     s.whatsappJoined ? 'YES' : 'NO'

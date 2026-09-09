@@ -16,7 +16,7 @@ interface AdminPaymentSettingsTabProps {
 }
 
 export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = ({ onRefresh }) => {
-  const [courseFee, setCourseFee] = useState(199);
+  const [courseFee, setCourseFee] = useState(99);
   const [originalFee, setOriginalFee] = useState(999);
   const [razorpayLink, setRazorpayLink] = useState('https://rzp.io/l/ai-marathi-guru');
   const [paymentMode, setPaymentMode] = useState<'payment_link' | 'razorpay_modal' | 'both'>('both');
@@ -39,7 +39,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
       });
       const data = await res.json();
       if (res.ok && data.paymentSettings) {
-        setCourseFee(data.paymentSettings.courseFee || 199);
+        setCourseFee(data.paymentSettings.courseFee || 99);
         setOriginalFee(data.paymentSettings.originalFee || 999);
         setRazorpayLink(data.paymentSettings.razorpayPaymentLink || 'https://rzp.io/l/ai-marathi-guru');
         setPaymentMode(data.paymentSettings.paymentMode || 'both');
@@ -110,7 +110,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
             Payment Settings & Razorpay Link
           </h1>
           <p className="text-[11px] text-slate-500 font-marathi-sub">
-            कोर्स फी (₹199), मूळ फी (₹999) आणि Razorpay Payment Link व्यवस्थापन
+            कोर्स फी (₹99), मूळ फी (₹999) आणि Razorpay Payment Link व्यवस्थापन
           </p>
         </div>
 
@@ -155,7 +155,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
                   className="w-full pl-7 pr-3 py-1.5 text-sm font-black text-slate-900 bg-white border border-stone-300 rounded-lg outline-none focus:border-blue-600 font-poppins"
                 />
               </div>
-              <p className="text-[9px] text-slate-500 font-medium">विद्यार्थ्यांकडून आकारली जाणारी अंतिम फी (उदा. 199)</p>
+              <p className="text-[9px] text-slate-500 font-medium">विद्यार्थ्यांकडून आकारली जाणारी अंतिम फी (उदा. 99)</p>
             </div>
 
             {/* Original Strike Fee */}

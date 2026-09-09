@@ -23,7 +23,7 @@ export const TrustBar: React.FC = () => {
     },
     {
       icon: DollarSign,
-      title: '₹199',
+      title: 'ONLY ₹99',
       subtitle: 'Affordable Learning',
       color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     },

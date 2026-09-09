@@ -75,7 +75,7 @@ export const CourseIncludes: React.FC = () => {
             या कोर्समध्ये तुम्हाला <span className="text-red-600">काय काय मिळेल?</span>
           </h2>
           <p className="text-slate-600 text-sm sm:text-base font-marathi-sub max-w-xl mx-auto">
-            फक्त ₹199 मध्ये मिळवा 7 मोठे फायदे जे तुमच्या करिअरला गती देतील!
+            Course Fee ₹999 ऐवजी Special Offer मध्ये फक्त ₹99 मध्ये मिळवा 7 मोठे फायदे जे तुमच्या करिअरला गती देतील!
           </p>
         </div>
 

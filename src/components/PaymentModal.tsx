@@ -39,7 +39,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   razorpayOrderId,
   onClose,
   onPaymentSuccess,
-  fee = 199,
+  fee = 99,
   paymentLink = 'https://rzp.io/rzp/gAmUJOS0',
 }) => {
   const [paymentState, setPaymentState] = useState<'PENDING' | 'VERIFYING' | 'FAILED'>('PENDING');
@@ -173,10 +173,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Amount Bar */}
         <div className="bg-blue-50 px-6 py-3.5 border-b border-blue-100 flex items-center justify-between text-sm">
-          <span className="text-slate-700 font-bold">कोर्स फी (Course Registration Fee):</span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-black text-slate-900 font-poppins">₹{fee}</span>
-            <span className="text-xs text-slate-500 font-bold">.00</span>
+          <div>
+            <span className="text-slate-700 font-bold block">कोर्स फी (Course Fee):</span>
+            <span className="text-xs text-slate-400 line-through font-poppins">₹999</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xs font-black text-amber-700 uppercase font-poppins">Special Offer:</span>
+            <span className="text-2xl font-black text-[#DC2626] font-poppins">🔥 ONLY ₹{fee}</span>
           </div>
         </div>
 

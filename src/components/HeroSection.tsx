@@ -60,15 +60,21 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             </p>
 
             {/* Course Fee Highlight Card */}
-            <div className="inline-flex flex-wrap items-center justify-center lg:justify-start gap-3 p-3.5 sm:p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-amber-300/60 shadow-md shadow-stone-200/50">
-              <div className="flex items-baseline gap-2">
+            <div className="inline-flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-amber-300/60 shadow-md shadow-stone-200/50">
+              <div className="flex items-center gap-1.5">
                 <span className="text-xs text-stone-500 font-bold font-marathi-sub">Course Fee:</span>
-                <span className="text-2xl sm:text-3xl font-black text-[#DC2626] font-poppins">₹199</span>
                 <span className="text-sm text-stone-400 line-through font-poppins font-semibold">₹999</span>
+              </div>
+              <div className="h-5 w-px bg-stone-200" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-stone-600 font-bold font-marathi-sub">Special Offer:</span>
+                <span className="text-2xl sm:text-3xl font-black text-[#DC2626] font-poppins tracking-tight">
+                  🔥 ONLY ₹99
+                </span>
               </div>
               <div className="h-6 w-px bg-stone-200 hidden sm:block" />
               <span className="px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-[#DC2626] font-extrabold text-xs font-marathi-sub flex items-center gap-1">
-                🔥 मर्यादित जागा उपलब्ध
+                मर्यादित जागा उपलब्ध
               </span>
             </div>
 
@@ -79,7 +85,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 className="bg-gradient-to-r from-[#DC2626] via-[#E11D48] to-[#DC2626] hover:brightness-110 text-white font-extrabold text-base sm:text-lg px-8 py-4 rounded-full transition-all shadow-xl shadow-red-600/30 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer font-poppins uppercase tracking-wider border border-white/20"
               >
                 <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-                <span>REGISTER NOW</span>
+                <span>फक्त ₹99 मध्ये Join करा</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>

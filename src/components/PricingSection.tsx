@@ -8,7 +8,7 @@ interface PricingSectionProps {
 }
 
 export const PricingSection: React.FC<PricingSectionProps> = ({
-  fee = 199,
+  fee = 99,
   oldPrice = 999,
   onScrollToRegister,
 }) => {
@@ -34,7 +34,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
             कोर्स फी आणि <span className="font-marathi-accent text-[#E53935]">विशेष ऑफर</span>
           </h2>
           <p className="text-slate-600 text-sm sm:text-base font-marathi-sub max-w-xl mx-auto">
-            कोणतीही लपवलेली फी नाही — फक्त ₹199 मध्ये परिपूर्ण प्रॅक्टिकल AI ज्ञान आणि प्रमाणपत्र!
+            कोणतीही लपवलेली फी नाही — फक्त ₹{fee} मध्ये परिपूर्ण प्रॅक्टिकल AI ज्ञान आणि प्रमाणपत्र!
           </p>
         </div>
 
@@ -46,7 +46,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
               <span className="text-xs sm:text-sm font-black font-poppins uppercase tracking-wider text-amber-300">
-                LIMITED SEATS OFFER (80% DISCOUNT)
+                LIMITED SEATS OFFER (90% DISCOUNT)
               </span>
             </div>
             <span className="text-xs text-slate-300 font-marathi-sub font-bold">
@@ -66,12 +66,15 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
             </div>
 
             {/* Price Tag */}
-            <div className="bg-red-50/80 p-4 sm:p-5 rounded-2xl border border-red-200 text-center shrink-0">
-              <div className="text-xs text-slate-500 font-bold line-through mb-0.5">
-                मूल्य: ₹{oldPrice}
+            <div className="bg-red-50/80 p-4 sm:p-5 rounded-2xl border border-red-200 text-center shrink-0 min-w-[180px]">
+              <div className="text-xs text-slate-500 font-bold font-marathi-sub mb-0.5">
+                Course Fee: <span className="line-through font-poppins font-semibold">₹{oldPrice}</span>
               </div>
-              <div className="text-3xl sm:text-4xl font-black text-[#E53935] font-poppins">
-                ₹{fee}
+              <div className="text-xs font-black text-amber-700 uppercase tracking-wider font-poppins mt-0.5">
+                Special Offer
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-[#E53935] font-poppins flex items-center justify-center gap-1 my-1">
+                <span>🔥 ONLY ₹{fee}</span>
               </div>
               <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded uppercase mt-1 inline-block">
                 एकदाच भरणा (One Time)
@@ -105,7 +108,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
               className="w-full sm:w-auto bg-[#E53935] hover:bg-[#D32F2F] text-white font-black text-lg px-10 py-4.5 rounded-2xl transition shadow-xl shadow-red-600/25 active:scale-95 cursor-pointer font-poppins inline-flex items-center justify-center gap-2"
             >
               <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-              <span>₹{fee} मध्ये Register करा</span>
+              <span>फक्त ₹{fee} मध्ये Join करा</span>
             </button>
 
             <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500 font-bold font-marathi-sub pt-1">

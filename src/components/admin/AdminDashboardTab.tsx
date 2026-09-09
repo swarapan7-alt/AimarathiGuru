@@ -323,7 +323,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
                       </span>
                     </td>
                     <td className="px-3.5 py-2 text-right font-black font-poppins text-slate-900 text-xs">
-                      ₹{s.amountPaid || 199}
+                      ₹{s.amountPaid || 99}
                     </td>
                   </tr>
                 ))

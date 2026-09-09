@@ -40,7 +40,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   const copyRegDetails = () => {
     navigator.clipboard.writeText(
-      `AI Marathi Guru Registration Receipt\nRegistration ID: ${registration.id}\nName: ${registration.fullName}\nCourse Date: ${registration.courseDateDisplay}\nSlot: ${registration.slotTimeDisplay}\nFee Paid: ₹${registration.amountPaid || 199}\nPayment ID: ${registration.paymentId}`
+      `AI Marathi Guru Registration Receipt\nRegistration ID: ${registration.id}\nName: ${registration.fullName}\nCourse Date: ${registration.courseDateDisplay}\nSlot: ${registration.slotTimeDisplay}\nFee Paid: ₹${registration.amountPaid || 99}\nPayment ID: ${registration.paymentId}`
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -124,7 +124,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                 <span>Slot: {registration.slotTimeDisplay}</span>
               </div>
               <div className="pt-1 text-[11px] font-bold text-emerald-800 bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-200 inline-block">
-                Payment: ₹{registration.amountPaid || 199} - PAID
+                Payment: ₹{registration.amountPaid || 99} - PAID
               </div>
             </div>
           </div>

@@ -79,7 +79,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onSubmitRegistration,
   isLoading,
   courseDates = [],
-  fee = 199,
+  fee = 99,
 }) => {
   const activeDates = courseDates.filter((cd) => cd.enabled);
   const defaultDate = activeDates[0] || null;
@@ -247,8 +247,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs">
               ⏱ Duration: <strong>2 Hours</strong>
             </span>
-            <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs">
-              💰 Fee: <strong className="text-[#E53935]">₹{fee}</strong>
+            <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs flex items-center gap-1.5">
+              <span className="text-stone-400 line-through">₹999</span>
+              <span className="text-[#E53935] font-black font-poppins">🔥 ONLY ₹{fee}</span>
             </span>
             <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs text-emerald-700">
               ✓ 100% Live Google Meet
@@ -260,7 +261,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         <div className="bg-white border border-slate-200 rounded-[32px] p-6 sm:p-10 shadow-2xl shadow-slate-200/50 relative overflow-hidden">
           
           <div className="absolute top-0 right-0 bg-[#E53935] text-white text-[11px] font-extrabold px-4 py-1.5 rounded-bl-2xl shadow-xs tracking-wider uppercase">
-            ₹{fee} SPECIAL OFFER
+            🔥 ONLY ₹{fee} SPECIAL OFFER
           </div>
 
           {errorMsg && (

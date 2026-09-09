@@ -16,7 +16,7 @@ Production-Ready Marathi EdTech Web Application for **AI Marathi Guru** - Live 2
    - **Dynamic Date & Slot Selection**: Slot 1 (11 AM – 1 PM) and Slot 2 (7 PM – 9 PM) with live available seats count and `SLOT FULL` handling
 
 3. **Razorpay Payment Integration**
-   - Dynamic ₹199 Razorpay checkout modal
+   - Dynamic ₹99 Razorpay checkout modal
    - Server-side concurrency capacity locks to prevent overbooking
    - Automated registration record creation on payment success
    - Success Modal displaying Registration ID (`AMG-2026-XXXXX`), student details, course date, slot, and direct **JOIN AI MARATHI GURU WHATSAPP COMMUNITY** button
@@ -76,7 +76,7 @@ npm run start
 ## 📁 Database Schema (`/data/db.json`)
 
 The system stores state in a JSON database structured as follows:
-- `siteSettings`: Fee (₹199), Hero headlines, price comparisons, course duration
+- `siteSettings`: Fee (Course Fee ₹999, Special Offer ₹99), Hero headlines, price comparisons, course duration
 - `courseDates`: List of workshop dates with `slot1` and `slot2` capacities, booked count, and Google Meet URLs
 - `students`: Complete registration records (`id`, `fullName`, `mobileNumber`, `whatsappNumber`, `email`, `district`, `occupation`, `courseDateId`, `selectedSlot`, `paymentStatus`, `paymentId`, `amountPaid`, `registrationDate`, `meetLink`)
 - `communicationSettings`: Community invite link (`https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO`), business phone, support link, templates

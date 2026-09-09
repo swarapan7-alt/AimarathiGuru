@@ -8,7 +8,7 @@ interface FinalCtaSectionProps {
 
 export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
   onScrollToRegister,
-  fee = 199,
+  fee = 99,
 }) => {
   return (
     <section className="py-12 sm:py-16 bg-[#FAF8F5] border-b border-stone-200/80">
@@ -24,7 +24,7 @@ export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
         </h2>
 
         <p className="text-stone-700 text-base sm:text-lg font-marathi-sub max-w-xl mx-auto">
-          फक्त <strong className="text-stone-900">₹{fee}</strong> मध्ये २ तासांची <strong>Practical Live Training</strong>.
+          Course Fee <span className="line-through text-stone-400">₹999</span> ऐवजी Special Offer <strong className="text-[#E53935] font-black font-poppins">🔥 ONLY ₹{fee}</strong> मध्ये २ तासांची <strong>Practical Live Training</strong>.
         </p>
 
         <div className="pt-2">
@@ -33,7 +33,7 @@ export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
             className="bg-[#E53935] hover:bg-[#D32F2F] text-white font-extrabold text-base sm:text-lg px-9 py-4 rounded-full transition-all shadow-lg shadow-red-500/25 hover:shadow-xl hover:scale-105 active:scale-95 inline-flex items-center justify-center gap-2.5 cursor-pointer font-poppins uppercase tracking-wider"
           >
             <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-            <span>REGISTER NOW</span>
+            <span>आजच तुमची Seat Book करा</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>

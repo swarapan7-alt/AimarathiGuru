@@ -179,7 +179,7 @@ export const CourseIntroSection: React.FC<CourseIntroSectionProps> = ({ onScroll
                   onClick={onScrollToRegister}
                   className="bg-[#1E3A8A] hover:bg-blue-900 text-white font-extrabold text-sm px-6 py-3.5 rounded-xl transition shadow-md shadow-blue-900/20 active:scale-95 cursor-pointer"
                 >
-                  ₹199 मध्ये Live Batch Join करा →
+                  फक्त ₹99 मध्ये Join करा →
                 </button>
               </div>
             )}

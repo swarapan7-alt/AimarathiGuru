@@ -85,7 +85,7 @@ export const AdminStudentsTab: React.FC<AdminStudentsTabProps> = ({
     const link = getEffectiveCommunityLink();
     const message = isPaid
       ? `नमस्कार ${student.fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${student.id}\nCourse Date: ${student.courseDateDisplay}\nTime Slot: ${student.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n${link}\n\nधन्यवाद,\nAI Marathi Guru`
-      : `नमस्कार ${student.fullName} 👋\n\nतुमची AI Marathi Guru नोंदणी प्रक्रिया अपूर्ण आहे. जागा निश्चित करण्यासाठी कृपया खालील अधिकृत लिंकवरून ₹${student.amountPaid || 199} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
+      : `नमस्कार ${student.fullName} 👋\n\nतुमची AI Marathi Guru नोंदणी प्रक्रिया अपूर्ण आहे. जागा निश्चित करण्यासाठी कृपया खालील अधिकृत लिंकवरून ₹${student.amountPaid || 99} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
 
     navigator.clipboard.writeText(message);
     setCopiedId(student.id);
@@ -97,7 +97,7 @@ export const AdminStudentsTab: React.FC<AdminStudentsTabProps> = ({
     const link = getEffectiveCommunityLink();
     const message = isPaid
       ? `नमस्कार ${student.fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${student.id}\nCourse Date: ${student.courseDateDisplay}\nTime Slot: ${student.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n${link}\n\nधन्यवाद,\nAI Marathi Guru`
-      : `नमस्कार ${student.fullName} 👋\n\nतुमची AI Marathi Guru नोंदणी प्रक्रिया पूर्ण करण्यासाठी कृपया ₹${student.amountPaid || 199} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
+      : `नमस्कार ${student.fullName} 👋\n\nतुमची AI Marathi Guru नोंदणी प्रक्रिया पूर्ण करण्यासाठी कृपया ₹${student.amountPaid || 99} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
 
     const url = `https://wa.me/91${student.whatsappNumber || student.mobileNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
@@ -366,7 +366,7 @@ export const AdminStudentsTab: React.FC<AdminStudentsTabProps> = ({
                           </button>
                         </div>
                         <div className="text-[9px] text-slate-600 mt-0.5 font-bold">
-                          ₹{s.amountPaid || 199}
+                          ₹{s.amountPaid || 99}
                         </div>
                       </td>
 

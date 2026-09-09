@@ -89,7 +89,7 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({ onRefresh })
     { code: '{course_date}', desc: 'कोर्सची तारीख' },
     { code: '{course_slot}', desc: 'कोर्सची वेळ/स्लॉट' },
     { code: '{payment_status}', desc: 'पेमेंट स्थिती (PAID/PENDING)' },
-    { code: '{course_fee}', desc: 'कोर्स फी (₹199)' },
+    { code: '{course_fee}', desc: 'कोर्स फी (₹99)' },
     { code: '{whatsapp_link}', desc: 'WhatsApp Community लिंक' },
     { code: '{meet_link}', desc: 'Google Meet लिंक' },
     { code: '{registration_id}', desc: 'नोंदणी क्रमांक (ID)' },
@@ -109,7 +109,7 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({ onRefresh })
     .replace(/{course_date}/gi, 'रविवार, २३ ऑगस्ट २०२६')
     .replace(/{course_slot}/gi, 'सकाळी ११:०० ते १:००')
     .replace(/{payment_status}/gi, 'PAID')
-    .replace(/{course_fee}/gi, '199')
+    .replace(/{course_fee}/gi, '99')
     .replace(/{whatsapp_link}/gi, 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO')
     .replace(/{meet_link}/gi, 'https://meet.google.com/amg-live-session')
     .replace(/{registration_id}/gi, 'AMG-2026-00042')

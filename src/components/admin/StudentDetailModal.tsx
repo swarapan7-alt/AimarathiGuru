@@ -40,7 +40,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [occupation, setOccupation] = useState(student.occupation);
   const [paymentStatus, setPaymentStatus] = useState(student.paymentStatus);
   const [paymentId, setPaymentId] = useState(student.paymentId || '');
-  const [amountPaid, setAmountPaid] = useState(student.amountPaid || 199);
+  const [amountPaid, setAmountPaid] = useState(student.amountPaid || 99);
   const [whatsappJoined, setWhatsappJoined] = useState(student.whatsappJoined || false);
 
   const [copiedMessage, setCopiedMessage] = useState(false);

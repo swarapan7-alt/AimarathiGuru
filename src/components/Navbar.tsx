@@ -32,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
         </span>
         <span className="font-marathi-sub text-xs sm:text-sm">
-          🔥 मर्यादित जागा! Live Training ₹९९९ ऐवजी फक्त <strong className="text-amber-300 font-extrabold font-poppins">₹१९९</strong> (८०% OFF)
+          🔥 मर्यादित जागा! Course Fee ₹999 ऐवजी Special Offer <strong className="text-amber-300 font-extrabold font-poppins">ONLY ₹99</strong> (90% OFF)
         </span>
       </div>
 
@@ -95,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="bg-[#E53935] hover:bg-[#D32F2F] text-white font-extrabold text-xs sm:text-sm px-5 py-2.5 rounded-full transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer font-poppins uppercase tracking-wider"
             >
               <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              <span>REGISTER NOW</span>
+              <span>आजच Register करा</span>
             </button>
 
             {/* Mobile Hamburger Menu */}

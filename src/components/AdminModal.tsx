@@ -206,7 +206,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
                     </td>
                     <td className="p-3">
                       <span className="bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1">
-                        ✓ PAID ₹199
+                        ✓ PAID ₹{row.amountPaid || 99}
                       </span>
                     </td>
                   </tr>

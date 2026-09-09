@@ -22,7 +22,7 @@ interface AdminWebsiteSettingsTabProps {
 
 export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = ({ onRefresh }) => {
   const [courseName, setCourseName] = useState('AI Marathi Guru');
-  const [courseFee, setCourseFee] = useState(199);
+  const [courseFee, setCourseFee] = useState(99);
   const [oldPrice, setOldPrice] = useState(999);
   const [heroHeading, setHeroHeading] = useState('आता AI मराठीत शिका!');
   const [heroSubtitle, setHeroSubtitle] = useState('AI शिका. व्यवसाय वाढवा. भविष्य घडवा.');

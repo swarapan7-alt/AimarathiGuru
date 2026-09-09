@@ -63,7 +63,7 @@ export interface RegistrationRecord extends RegistrationFormData {
   paymentVerified?: boolean;
   paymentId: string;
   orderId?: string;
-  amountPaid: number; // 199
+  amountPaid: number; // 99
   paymentDate?: string;
   failureReason?: string;
   whatsappJoined: boolean;

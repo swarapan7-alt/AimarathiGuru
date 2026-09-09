@@ -14,9 +14,9 @@ export const StickyMobileCta: React.FC<StickyMobileCtaProps> = ({ onScrollToRegi
             LIMITED SEATS LEFT
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-slate-400 line-through text-xs font-bold">₹999</span>
-            <span className="text-xl font-black text-red-600 font-poppins">₹199</span>
-            <span className="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 rounded">80% OFF</span>
+            <span className="text-slate-400 line-through text-xs font-bold font-poppins">₹999</span>
+            <span className="text-lg sm:text-xl font-black text-red-600 font-poppins">🔥 ONLY ₹99</span>
+            <span className="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 rounded">90% OFF</span>
           </div>
         </div>
 
@@ -25,7 +25,7 @@ export const StickyMobileCta: React.FC<StickyMobileCtaProps> = ({ onScrollToRegi
           className="flex-1 bg-[#E53935] active:bg-[#D32F2F] text-white font-extrabold text-xs sm:text-sm py-3 px-4 rounded-full shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 font-poppins uppercase tracking-wider cursor-pointer"
         >
           <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-          <span>REGISTER NOW</span>
+          <span>फक्त ₹99 मध्ये Join करा</span>
         </button>
       </div>
     </div>
