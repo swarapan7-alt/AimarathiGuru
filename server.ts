@@ -1255,6 +1255,166 @@ app.post('/api/payment/cancel', (req, res) => {
   }
 });
 
+// 6.2.1 Automatic Server-Side Payment Status Check & Polling Handler
+const handlePaymentStatusCheck = async (req: express.Request, res: express.Response) => {
+  try {
+    const tempId = String(req.query.tempId || req.body?.tempId || req.query.studentId || req.body?.studentId || '').trim();
+    const mobileNumber = String(req.query.mobileNumber || req.body?.mobileNumber || '').trim();
+    const orderId = String(req.query.orderId || req.body?.orderId || '').trim();
+    const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
+
+    let student: DBStructure['students'][0] | undefined;
+    if (tempId) {
+      student = db.students.find((s) => s.id === tempId || s.tempId === tempId);
+    }
+    if (!student && orderId) {
+      student = db.students.find((s) => s.orderId === orderId);
+    }
+    if (!student && cleanMobile) {
+      // Look for student with matching mobile number (prefer pending unconfirmed sessions first)
+      student = db.students.find(
+        (s) => (s.mobileNumber === cleanMobile || s.mobileNumber.endsWith(cleanMobile)) && s.paymentStatus !== 'PAID'
+      ) || db.students.find((s) => s.mobileNumber === cleanMobile || s.mobileNumber.endsWith(cleanMobile));
+    }
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        paymentStatus: 'NOT_FOUND',
+        error: 'नोंदणी सेशन सापडले नाही.',
+      });
+    }
+
+    // 1. If already PAID & CONFIRMED (via Webhook, API, or Checkout)
+    if (student.paymentStatus === 'PAID' && student.registrationStatus === 'CONFIRMED') {
+      const template = db.communicationSettings.templates.paymentSuccess;
+      const formattedMessage = formatMessageTemplate(template, student);
+      return res.json({
+        success: true,
+        paymentStatus: 'PAID',
+        registrationStatus: 'CONFIRMED',
+        verified: true,
+        registration: student,
+        whatsappMessage: formattedMessage,
+        communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+      });
+    }
+
+    // 2. If student status is marked FAILED
+    if (student.paymentStatus === 'FAILED') {
+      return res.json({
+        success: true,
+        paymentStatus: 'FAILED',
+        registrationStatus: 'PENDING',
+        reason: student.failureReason || 'पेमेंट अयशस्वी झाले. कृपया पुन्हा प्रयत्न करा.',
+      });
+    }
+
+    // 3. If student status is marked CANCELLED
+    if (student.paymentStatus === 'CANCELLED') {
+      return res.json({
+        success: true,
+        paymentStatus: 'CANCELLED',
+        registrationStatus: 'PENDING',
+        reason: 'पेमेंट रद्द झाले आहे. कृपया पुन्हा प्रयत्न करा.',
+      });
+    }
+
+    // 4. Proactive Razorpay Live API status lookup (if Razorpay API keys configured)
+    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+      try {
+        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
+        const paymentsRes = await fetch('https://api.razorpay.com/v1/payments?count=15', {
+          headers: { Authorization: authHeader },
+        });
+
+        if (paymentsRes.ok) {
+          const pData: any = await paymentsRes.json();
+          const items = Array.isArray(pData?.items) ? pData.items : [];
+
+          // Look for any captured/authorized payment for this contact or order
+          const matchedPayment = items.find((p: any) => {
+            if (p.status !== 'captured' && p.status !== 'authorized') return false;
+            const pContact = p.contact ? String(p.contact).replace(/\D/g, '').slice(-10) : '';
+            const pEmail = p.email ? String(p.email).toLowerCase().trim() : '';
+            const pOrder = p.order_id || '';
+            const pNoteTempId = p.notes?.tempId || p.notes?.studentId || '';
+
+            const matchesTempId = tempId && pNoteTempId && (pNoteTempId === tempId || pNoteTempId === student?.tempId);
+            const matchesMobile = cleanMobile && pContact && (pContact === cleanMobile || pContact.endsWith(cleanMobile));
+            const matchesEmail = student?.email && pEmail && pEmail === student.email.toLowerCase().trim();
+            const matchesOrder = student?.orderId && pOrder && pOrder === student.orderId;
+
+            return matchesTempId || matchesMobile || matchesEmail || matchesOrder;
+          });
+
+          if (matchedPayment) {
+            const payId = matchedPayment.id;
+            // Check duplicate
+            const duplicate = db.students.find(
+              (s) => s.id !== student!.id && s.paymentId === payId && s.paymentStatus === 'PAID'
+            );
+            if (!duplicate) {
+              const confirmedRegId = generateNextRegistrationId(db);
+              student.id = confirmedRegId;
+              student.registrationStatus = 'CONFIRMED';
+              student.paymentStatus = 'PAID';
+              student.paymentVerified = true;
+              student.paymentId = payId;
+              if (matchedPayment.order_id) student.orderId = matchedPayment.order_id;
+              student.paymentDate = new Date().toISOString();
+              student.failureReason = undefined;
+
+              // Increment seat in slot
+              const courseDate = db.courseDates.find((cd) => cd.id === student!.courseDateId);
+              if (courseDate) {
+                const slotKey = student!.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+                if (courseDate[slotKey]) {
+                  courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+                }
+              }
+
+              saveDB(db);
+              addAuditLog('SYSTEM', 'PAYMENT_VERIFIED_AUTO', `Auto-verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
+              console.log(`[AUTO-VERIFIED PAYMENT] Student: ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
+
+              const template = db.communicationSettings.templates.paymentSuccess;
+              const formattedMessage = formatMessageTemplate(template, student);
+              return res.json({
+                success: true,
+                paymentStatus: 'PAID',
+                registrationStatus: 'CONFIRMED',
+                verified: true,
+                registration: student,
+                whatsappMessage: formattedMessage,
+                communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+              });
+            }
+          }
+        }
+      } catch (checkErr) {
+        console.warn('Proactive payment status check warning:', checkErr);
+      }
+    }
+
+    // Awaiting payment confirmation
+    return res.json({
+      success: true,
+      paymentStatus: 'PENDING',
+      registrationStatus: 'PENDING',
+      message: 'पेमेंट तपासले जात आहे. कृपया काही क्षण प्रतीक्षा करा.',
+    });
+  } catch (err: any) {
+    console.error('Payment status check error:', err);
+    return res.status(500).json({ error: 'Status check failed' });
+  }
+};
+
+app.get('/api/payment/status', handlePaymentStatusCheck);
+app.post('/api/payment/status', handlePaymentStatusCheck);
+app.get('/api/payment/check-status', handlePaymentStatusCheck);
+app.post('/api/payment/check-status', handlePaymentStatusCheck);
+
 // 6.3 Razorpay Webhook Handler (STEP 8 - Duplicate Safe Webhook)
 const handleRazorpayWebhook = async (req: express.Request, res: express.Response) => {
   try {
@@ -1285,6 +1445,10 @@ const handleRazorpayWebhook = async (req: express.Request, res: express.Response
       if (payId) {
         // Find matching student
         let student = db.students.find((s) => s.paymentId === payId);
+        const noteTempId = paymentEntity?.notes?.tempId || paymentEntity?.notes?.studentId || '';
+        if (!student && noteTempId) {
+          student = db.students.find((s) => s.id === noteTempId || s.tempId === noteTempId);
+        }
         if (!student && orderId) {
           student = db.students.find((s) => s.orderId === orderId);
         }

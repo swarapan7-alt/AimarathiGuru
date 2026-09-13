@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ExternalLink,
-  ShieldCheck,
   Zap,
   Lock,
   CheckCircle2,
   AlertCircle,
-  Smartphone,
-  CreditCard,
-  Building2,
   Calendar,
   Clock,
   User,
   Phone,
   RotateCcw,
   HelpCircle,
+  Loader2,
+  Sparkles,
+  ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 import { RegistrationRecord, RegistrationFormData } from '../types';
 
@@ -42,9 +42,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   fee = 99,
   paymentLink = 'https://rzp.io/rzp/gAmUJOS0',
 }) => {
-  const [paymentState, setPaymentState] = useState<'PENDING' | 'VERIFYING' | 'FAILED'>('PENDING');
-  const [transactionId, setTransactionId] = useState('');
+  const [paymentState, setPaymentState] = useState<
+    'IDLE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+  >('IDLE');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isManualChecking, setIsManualChecking] = useState(false);
+  const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
+  const [confirmedWhatsappMsg, setConfirmedWhatsappMsg] = useState('');
 
   const targetReg = registration || (formData as any);
   const studentName = targetReg?.fullName || '';
@@ -55,79 +59,192 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const activePaymentLink = paymentLink || 'https://rzp.io/rzp/gAmUJOS0';
 
-  // STEP 2: Proceed to Payment (Open Official Hosted Gateway)
-  const handleOpenRazorpay = () => {
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Poll server for automated verification status
+  const checkPaymentStatus = async (isManual = false) => {
+    if (!activeTempId && !studentMobile) return;
+    if (isManual) setIsManualChecking(true);
+
+    try {
+      const queryParams = new URLSearchParams({
+        tempId: activeTempId,
+        studentId: activeTempId,
+        mobileNumber: studentMobile,
+        orderId: razorpayOrderId || '',
+      });
+
+      const res = await fetch(`/api/payment/status?${queryParams.toString()}`);
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (data.paymentStatus === 'PAID' && data.registrationStatus === 'CONFIRMED') {
+          // Automatic Payment Verified by Server!
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setConfirmedRecord(data.registration);
+          setConfirmedWhatsappMsg(data.whatsappMessage || '');
+          setPaymentState('SUCCESS');
+          // Automatically transition to confirmed registration receipt
+          setTimeout(() => {
+            onPaymentSuccess(data.registration, data.whatsappMessage);
+          }, 2000);
+        } else if (data.paymentStatus === 'FAILED') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setPaymentState('FAILED');
+          setErrorMessage(data.reason || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
+        } else if (data.paymentStatus === 'CANCELLED') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setPaymentState('CANCELLED');
+          setErrorMessage('पेमेंट रद्द करण्यात आले आहे.');
+        }
+      }
+    } catch (err) {
+      console.warn('Status polling error:', err);
+    } finally {
+      if (isManual) setIsManualChecking(false);
+    }
+  };
+
+  // Start polling when state is CHECKING
+  useEffect(() => {
+    if (paymentState === 'CHECKING') {
+      // Immediate first check
+      checkPaymentStatus();
+      // Poll every 2.5 seconds
+      pollingRef.current = setInterval(() => {
+        checkPaymentStatus();
+      }, 2500);
+
+      return () => {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+      };
+    } else {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    }
+  }, [paymentState, activeTempId, studentMobile]);
+
+  // Open Razorpay Payment Flow
+  const handleOpenRazorpay = async () => {
+    setErrorMessage('');
+
+    // If Razorpay standard checkout script is available and key is configured, try opening standard checkout
+    const rzpCheckoutAvailable =
+      typeof window !== 'undefined' &&
+      typeof (window as any).Razorpay !== 'undefined' &&
+      Boolean(razorpayKeyId);
+
+    if (rzpCheckoutAvailable) {
+      try {
+        const options: any = {
+          key: razorpayKeyId,
+          amount: fee * 100, // ₹99 = 9900 paise
+          currency: 'INR',
+          name: 'AI Marathi Guru',
+          description: 'Live Online Course Registration Fee',
+          order_id: razorpayOrderId || undefined,
+          prefill: {
+            name: studentName,
+            contact: studentMobile,
+            email: targetReg?.email || '',
+          },
+          notes: {
+            tempId: activeTempId,
+            studentId: activeTempId,
+            mobileNumber: studentMobile,
+          },
+          theme: {
+            color: '#E53935',
+          },
+          handler: async function (response: any) {
+            // AUTOMATIC VERIFICATION: Server verifies signature and payment id directly
+            setPaymentState('CHECKING');
+            try {
+              const verifyRes = await fetch('/api/payment/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  tempId: activeTempId,
+                  studentId: activeTempId,
+                  mobileNumber: studentMobile,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id || razorpayOrderId,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+
+              const data = await verifyRes.json();
+              if (verifyRes.ok && data.success && data.registration && data.registrationStatus === 'CONFIRMED') {
+                setConfirmedRecord(data.registration);
+                setConfirmedWhatsappMsg(data.whatsappMessage);
+                setPaymentState('SUCCESS');
+                setTimeout(() => {
+                  onPaymentSuccess(data.registration, data.whatsappMessage);
+                }, 1800);
+              } else {
+                setPaymentState('FAILED');
+                setErrorMessage(data.error || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
+              }
+            } catch (e) {
+              setPaymentState('FAILED');
+              setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया पुन्हा प्रयत्न करा.');
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              // Student cancelled / closed payment screen
+              setPaymentState('CANCELLED');
+              fetch('/api/payment/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tempId: activeTempId, mobileNumber: studentMobile }),
+              }).catch(() => {});
+            },
+          },
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (resp: any) {
+          setPaymentState('FAILED');
+          setErrorMessage(resp?.error?.description || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
+          fetch('/api/payment/fail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tempId: activeTempId,
+              mobileNumber: studentMobile,
+              reason: resp?.error?.description || 'Payment failed',
+            }),
+          }).catch(() => {});
+        });
+
+        rzp.open();
+        return;
+      } catch (checkoutErr) {
+        console.warn('Checkout popup fallback to payment link:', checkoutErr);
+      }
+    }
+
+    // Open Official Razorpay Payment Link
     try {
       window.open(activePaymentLink, '_blank', 'noopener,noreferrer');
     } catch (e) {
       window.location.href = activePaymentLink;
     }
+
+    // Immediately switch to STEP 2: Automatic checking state
+    setPaymentState('CHECKING');
   };
 
-  // STEP 3 & STEP 9: Strict Server-Side Verification
-  const handleVerifyPayment = async () => {
-    const cleanPayId = transactionId.trim();
-    if (!cleanPayId) {
-      setErrorMessage('कृपया Razorpay Payment ID किंवा Transaction ID टाका (उदा. pay_OkZ981a2 किंवा UPI Ref No).');
-      return;
-    }
-
-    setErrorMessage('');
-    setPaymentState('VERIFYING');
-
-    try {
-      const res = await fetch('/api/payment/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tempId: activeTempId,
-          studentId: activeTempId,
-          mobileNumber: studentMobile,
-          paymentId: cleanPayId,
-          razorpay_payment_id: cleanPayId,
-          razorpay_order_id: razorpayOrderId,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success && data.registration && data.registrationStatus === 'CONFIRMED') {
-        // STEP 3: Successful Verification - Notify parent with verified registration and WhatsApp template
-        onPaymentSuccess(data.registration, data.whatsappMessage);
-      } else {
-        // STEP 4: Payment Verification Failed
-        setPaymentState('FAILED');
-        setErrorMessage(data.error || 'पेमेंट पडताळणी अयशस्वी झाली. कृपया अधिकृत Payment ID तपासा किंवा पुन्हा पेमेंट करा.');
-        
-        // Notify server of failed attempt
-        fetch('/api/payment/fail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tempId: activeTempId,
-            studentId: activeTempId,
-            mobileNumber: studentMobile,
-            reason: data.error || 'Invalid or unverified transaction ID entered by user',
-          }),
-        }).catch(() => {});
-      }
-    } catch (err: any) {
-      setPaymentState('FAILED');
-      setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया तुमचे इंटरनेट कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.');
-    }
-  };
-
-  // STEP 4: Retry Payment after failure
+  // Retry payment after failure or cancellation
   const handleRetryPayment = () => {
-    setPaymentState('PENDING');
+    setPaymentState('IDLE');
     setErrorMessage('');
-    setTransactionId('');
   };
 
-  // STEP 5: Cancel / Dismiss Payment Modal
+  // Cancel / Dismiss Modal
   const handleCancelModal = () => {
-    // Notify server of cancelled session
-    if (activeTempId) {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (activeTempId && paymentState !== 'SUCCESS') {
       fetch('/api/payment/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,14 +288,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
         </div>
 
-        {/* Amount Bar */}
+        {/* Pricing Display */}
         <div className="bg-blue-50 px-6 py-3.5 border-b border-blue-100 flex items-center justify-between text-sm">
           <div>
             <span className="text-slate-700 font-bold block">कोर्स फी (Course Fee):</span>
             <span className="text-xs text-slate-400 line-through font-poppins">₹999</span>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs font-black text-amber-700 uppercase font-poppins">Special Offer:</span>
+            <span className="text-xs font-black text-amber-700 uppercase font-poppins">SPECIAL OFFER:</span>
             <span className="text-2xl font-black text-[#DC2626] font-poppins">🔥 ONLY ₹{fee}</span>
           </div>
         </div>
@@ -186,7 +303,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         {/* Modal Body */}
         <div className="p-6 space-y-5">
           
-          {/* STEP 1: Registration Details Summary (Pending Verification) */}
+          {/* STEP 1: Registration Details Summary */}
           <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2 border border-slate-200">
             <div className="flex justify-between items-center">
               <span className="text-slate-500 font-medium flex items-center gap-1">
@@ -208,26 +325,152 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
             <div className="flex justify-between items-center pt-1 border-t border-slate-200/80">
               <span className="text-slate-500 font-medium">नोंदणी स्थिती (Status):</span>
-              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider font-poppins flex items-center gap-1">
-                <Clock className="w-3 h-3" /> PAYMENT PENDING
-              </span>
+              {paymentState === 'SUCCESS' ? (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider font-poppins flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> CONFIRMED
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider font-poppins flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> PAYMENT PENDING
+                </span>
+              )}
             </div>
           </div>
 
-          {/* STEP 4: FAILURE VIEW */}
-          {paymentState === 'FAILED' ? (
+          {/* DYNAMIC WORKFLOW ACCORDING TO PAYMENT STATE */}
+
+          {/* 1. SUCCESS STATE */}
+          {paymentState === 'SUCCESS' && (
+            <div className="p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/30">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-200/80 text-emerald-900 font-extrabold text-xs uppercase tracking-wider font-poppins">
+                  <span>✅ PAYMENT SUCCESSFUL</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-emerald-950 font-poppins pt-1">
+                  ✅ REGISTRATION CONFIRMED
+                </h3>
+                <p className="text-xs text-emerald-800 font-medium leading-relaxed">
+                  तुमचे ₹{fee} पेमेंट यशस्वी झाले आहे.
+                </p>
+                <p className="text-xs text-slate-700 font-medium">
+                  तुमची AI Marathi Guru Live Course साठी नोंदणी पूर्ण झाली आहे.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmedRecord) {
+                      onPaymentSuccess(confirmedRecord, confirmedWhatsappMsg);
+                    }
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition uppercase tracking-wider font-poppins"
+                >
+                  <span>नोंदणी पावती पहा (VIEW RECEIPT)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 2. CHECKING / PENDING STATE */}
+          {paymentState === 'CHECKING' && (
+            <div className="p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-200 space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-black text-blue-950 font-poppins">
+                  <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                  <span>STEP 2: पेमेंट ऑटोमॅटिक तपासले जात आहे</span>
+                </div>
+                <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full font-poppins flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" /> ⏳ PAYMENT PENDING
+                </span>
+              </div>
+
+              {/* Animated Radar / Verification Card */}
+              <div className="p-4 bg-white rounded-xl border border-blue-100 text-center space-y-2.5 shadow-xs">
+                <div className="relative w-12 h-12 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-blue-400/20 animate-ping" />
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-slate-800">
+                    तुमचे पेमेंट तपासले जात आहे. कृपया काही क्षण प्रतीक्षा करा.
+                  </h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                    Razorpay वरून ₹{fee} पेमेंट पूर्ण होताच तुमची नोंदणी आपोआप कन्फर्म होईल.
+                  </p>
+                </div>
+              </div>
+
+              {/* Automatic Assurance Note */}
+              <div className="p-3 bg-white/70 rounded-xl border border-blue-100 text-[11px] text-slate-600 space-y-1">
+                <p className="flex items-start gap-1.5 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>कोणताही Payment ID किंवा Transaction ID टाईप करण्याची गरज नाही.</span>
+                </p>
+                <p className="flex items-start gap-1.5 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>सिस्टम पेमेंट आपोआप तपासून नोंदणी पावती व WhatsApp ग्रुप लिंक दाखवेल.</span>
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => checkPaymentStatus(true)}
+                  disabled={isManualChecking}
+                  className="w-full bg-white hover:bg-slate-50 border border-blue-300 text-blue-900 text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer transition active:scale-[0.99]"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${isManualChecking ? 'animate-spin' : ''}`} />
+                  <span>{isManualChecking ? 'तपासणी चालू आहे...' : 'पेमेंट स्थिती पुन्हा तपासा (Check Status Now)'}</span>
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenRazorpay}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>पेमेंट लिंक पुन्हा उघडा</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRetryPayment}
+                    className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition cursor-pointer"
+                  >
+                    रद्द करा
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. FAILED STATE */}
+          {paymentState === 'FAILED' && (
             <div className="p-5 rounded-2xl bg-red-50 border-2 border-red-200 space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center gap-2.5 text-red-800 font-extrabold text-sm">
                 <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                <span>Payment Verification Failed (पेमेंट अयशस्वी)</span>
+                <span>❌ PAYMENT FAILED</span>
               </div>
-              <p className="text-xs text-red-700 leading-relaxed font-medium">
-                {errorMessage || 'तुमचे पेमेंट कन्फर्म होऊ शकले नाही. कृपया अचूक Payment ID तपासा किंवा पुन्हा पेमेंट करा.'}
+              <p className="text-xs text-red-700 leading-relaxed font-bold">
+                तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.
               </p>
-              <div className="p-3 bg-white/80 rounded-xl border border-red-100 text-[11px] text-slate-600 space-y-1">
-                <p>• पेमेंट पूर्ण झाले नसल्यास नोंदणी कन्फर्म होत नाही.</p>
-                <p>• कोणतीही रक्कम खात्यातून कट झाली असल्यास आणि ID सापडत नसल्यास सपोर्टशी संपर्क करा.</p>
-              </div>
+              {errorMessage && (
+                <p className="text-[11px] text-red-600 font-medium bg-white/70 p-2.5 rounded-lg border border-red-200">
+                  {errorMessage}
+                </p>
+              )}
+              <p className="text-[11px] text-slate-600">
+                पेमेंट पूर्ण झाल्याशिवाय नोंदणी कन्फर्म होत नाही. कृपया पुन्हा प्रयत्न करा किंवा बँक/UPI ॲप तपासा.
+              </p>
 
               <div className="flex gap-2.5 pt-1">
                 <button
@@ -236,7 +479,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className="flex-1 bg-red-600 hover:bg-red-700 active:scale-[0.99] text-white text-xs font-black py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 uppercase tracking-wider font-poppins cursor-pointer transition"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>पुन्हा प्रयत्न करा (RETRY)</span>
+                  <span>RETRY PAYMENT</span>
                 </button>
                 <a
                   href="https://wa.me/919801555171?text=Payment%20Help%20AI%20Marathi%20Guru"
@@ -249,100 +492,78 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </a>
               </div>
             </div>
-          ) : (
-            <>
-              {/* STEP 2: Direct Razorpay Action Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/80 border-2 border-blue-200 space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-black text-blue-950 font-poppins">
-                    <Zap className="w-4 h-4 text-blue-600 fill-blue-600" />
-                    <span>STEP 1: अधिकृत पेमेंट पूर्ण करा</span>
-                  </div>
-                  <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full font-poppins">
-                    SECURE LINK
-                  </span>
-                </div>
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                  खालील बटणावर क्लिक करून थेट Razorpay वरून <strong>Google Pay, PhonePe, Paytm, QR Code, Cards किंवा NetBanking</strong> द्वारे ₹{fee} पेमेंट करा:
-                </p>
-                
-                <button
-                  type="button"
-                  onClick={handleOpenRazorpay}
-                  className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-black py-3.5 px-4 rounded-2xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
-                >
-                  <ExternalLink className="w-4.5 h-4.5" />
-                  <span>OPEN RAZORPAY PAYMENT LINK (₹{fee})</span>
-                </button>
-
-                {/* Payment Method Badges */}
-                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
-                  {['Google Pay', 'PhonePe', 'Paytm UPI', 'BHIM QR', 'Cards', 'NetBanking'].map((method, i) => (
-                    <span key={i} className="text-[10px] font-bold px-2 py-0.5 bg-white rounded-md border border-blue-200 text-slate-700 shadow-xs">
-                      ✓ {method}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* STEP 3: Verify Payment Card */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>STEP 2: पेमेंट झाल्यावर पडताळणी करा</span>
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-medium font-poppins">
-                    SERVER VERIFIED
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-slate-600 block">
-                    Razorpay Payment ID / Transaction ID टाका:
-                  </label>
-                  <input
-                    type="text"
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="उदा. pay_OkZ981a2 किंवा UPI Ref No"
-                    className="w-full px-3.5 py-2.5 text-xs bg-white border border-slate-300 rounded-xl font-mono focus:border-emerald-600 outline-none"
-                  />
-                  <p className="text-[10px] text-slate-500">
-                    पेमेंट झाल्यावर Razorpay स्क्रीनवर किंवा SMS/Email मध्ये मिळालेला Payment ID येथे टाका.
-                  </p>
-                </div>
-
-                {errorMessage && (
-                  <p className="text-xs text-red-600 font-bold flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {errorMessage}
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleVerifyPayment}
-                  disabled={paymentState === 'VERIFYING'}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] disabled:opacity-60 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider py-3.5 rounded-xl shadow-md shadow-emerald-700/20 transition flex items-center justify-center gap-2 cursor-pointer font-poppins"
-                >
-                  {paymentState === 'VERIFYING' ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>पेमेंट पडताळणी करत आहे...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4.5 h-4.5" />
-                      <span>VERIFY & CONFIRM PAYMENT (नोंदणी पूर्ण करा)</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
           )}
 
-          {/* Security & SSL Note */}
-          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+          {/* 4. CANCELLED STATE */}
+          {paymentState === 'CANCELLED' && (
+            <div className="p-5 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5 text-amber-900 font-extrabold text-sm">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                <span>पेमेंट पूर्ण झाले नाही.</span>
+              </div>
+              <p className="text-xs text-amber-800 leading-relaxed font-bold">
+                कृपया पुन्हा प्रयत्न करा.
+              </p>
+              <p className="text-[11px] text-slate-600">
+                पेमेंट स्क्रीन बंद झाली किंवा रद्द झाली. नोंदणी पूर्ण करण्यासाठी खालील बटणावर क्लिक करा.
+              </p>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleRetryPayment}
+                  className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-xs font-black py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 uppercase tracking-wider font-poppins cursor-pointer transition"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>RETRY PAYMENT</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 5. IDLE STATE: STEP 1 - PAY VIA RAZORPAY */}
+          {paymentState === 'IDLE' && (
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/80 border-2 border-blue-200 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-black text-blue-950 font-poppins">
+                  <Zap className="w-4 h-4 text-blue-600 fill-blue-600" />
+                  <span>STEP 1: अधिकृत पेमेंट पूर्ण करा</span>
+                </div>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full font-poppins">
+                  SECURE LINK
+                </span>
+              </div>
+              
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                खालील बटणावर क्लिक करून Razorpay वर <strong>₹{fee}</strong> पेमेंट करा.
+              </p>
+              
+              <button
+                type="button"
+                onClick={handleOpenRazorpay}
+                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
+              >
+                <ExternalLink className="w-4.5 h-4.5" />
+                <span>OPEN RAZORPAY PAYMENT LINK (₹{fee})</span>
+              </button>
+
+              {/* Payment Method Badges */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                {['Google Pay', 'PhonePe', 'Paytm', 'UPI QR', 'Cards', 'NetBanking'].map((method, i) => (
+                  <span key={i} className="text-[10px] font-bold px-2 py-0.5 bg-white rounded-md border border-blue-200 text-slate-700 shadow-xs">
+                    ✓ {method}
+                  </span>
+                ))}
+              </div>
+
+              <p className="text-[11px] text-center text-slate-500 font-medium pt-1">
+                पेमेंट होताच सिस्टम आपोआप पडताळणी करून नोंदणी कन्फर्म करेल.
+              </p>
+            </div>
+          )}
+
+          {/* Security & SSL Guarantee */}
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400 pt-1">
             <Lock className="w-3.5 h-3.5 text-slate-400" />
             <span>256-Bit SSL Encrypted • Official Razorpay Payment Gateway</span>
           </div>

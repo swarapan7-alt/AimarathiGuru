@@ -23,7 +23,7 @@
         "startTime": "11:00 AM",
         "endTime": "1:00 PM",
         "capacity": 1000,
-        "booked": 18,
+        "booked": 19,
         "enabled": true,
         "meetLink": "https://meet.google.com/amg-slot1-live"
       },
@@ -49,7 +49,7 @@
         "startTime": "11:00 AM",
         "endTime": "1:00 PM",
         "capacity": 50,
-        "booked": 7,
+        "booked": 6,
         "enabled": true,
         "meetLink": "https://meet.google.com/amg-aug23-slot1"
       },
@@ -311,6 +311,20 @@
     ]
   },
   "auditLogs": [
+    {
+      "id": "log_1789193829960_974",
+      "timestamp": "2026-09-12T06:17:09.960Z",
+      "adminUsername": "SYSTEM",
+      "action": "PAYMENT_FAILED",
+      "details": "Payment failed for session sess_1789193826527_5sp5sm1 (रमेश जाधव): Bank server timeout"
+    },
+    {
+      "id": "log_1789193822405_677",
+      "timestamp": "2026-09-12T06:17:02.405Z",
+      "adminUsername": "WEBHOOK",
+      "action": "PAYMENT_CAPTURED",
+      "details": "Webhook confirmed student संजय मोरे (AMG-2026-00004) | PayId: pay_TEST99881122"
+    },
     {
       "id": "log_1787251598896_422",
       "timestamp": "2026-08-20T18:46:38.896Z",
