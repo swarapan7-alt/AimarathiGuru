@@ -18,7 +18,7 @@ interface AdminPaymentSettingsTabProps {
 export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = ({ onRefresh }) => {
   const [courseFee, setCourseFee] = useState(99);
   const [originalFee, setOriginalFee] = useState(999);
-  const [razorpayLink, setRazorpayLink] = useState('https://rzp.io/l/ai-marathi-guru');
+  const [razorpayLink, setRazorpayLink] = useState('');
   const [paymentMode, setPaymentMode] = useState<'payment_link' | 'razorpay_modal' | 'both'>('both');
   const [razorpayKeyId, setRazorpayKeyId] = useState('rzp_live_defaultKey');
   
@@ -41,7 +41,8 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
       if (res.ok && data.paymentSettings) {
         setCourseFee(data.paymentSettings.courseFee || 99);
         setOriginalFee(data.paymentSettings.originalFee || 999);
-        setRazorpayLink(data.paymentSettings.razorpayPaymentLink || 'https://rzp.io/l/ai-marathi-guru');
+        const link = data.paymentSettings.razorpayPaymentLink;
+        setRazorpayLink(link && !link.includes('gAmUJOS0') ? link : '');
         setPaymentMode(data.paymentSettings.paymentMode || 'both');
         setRazorpayKeyId(data.paymentSettings.razorpayKeyId || '');
       }
@@ -206,7 +207,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
               required
               value={razorpayLink}
               onChange={(e) => setRazorpayLink(e.target.value)}
-              placeholder="https://rzp.io/l/ai-marathi-guru"
+              placeholder="https://rzp.io/rzp/..."
               className="w-full px-4 py-3 text-xs bg-white border border-blue-300 rounded-xl outline-none focus:border-blue-700 font-mono text-slate-800 font-medium"
             />
           </div>

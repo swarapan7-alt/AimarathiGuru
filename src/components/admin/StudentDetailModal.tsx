@@ -86,6 +86,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
   const getPersonalizedMessage = () => {
     let communityLink = 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
+    let paymentLink = '';
     try {
       const cached = localStorage.getItem('amg_cached_whatsapp_settings');
       if (cached) {
@@ -93,11 +94,20 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         if (parsed.communityLink) communityLink = parsed.communityLink;
       }
     } catch (_) {}
+    try {
+      const pCached = localStorage.getItem('amg_cached_payment_settings');
+      if (pCached) {
+        const parsed = JSON.parse(pCached);
+        if (parsed.razorpayPaymentLink && !parsed.razorpayPaymentLink.includes('gAmUJOS0')) {
+          paymentLink = parsed.razorpayPaymentLink;
+        }
+      }
+    } catch (_) {}
 
     if (paymentStatus === 'PAID') {
       return `नमस्कार ${fullName} 👋\n\nAI Marathi Guru Live Training साठी तुमची नोंदणी यशस्वी झाली आहे. 🎉\n\nRegistration ID: ${student.id}\nCourse Date: ${student.courseDateDisplay}\nTime Slot: ${student.slotTimeDisplay}\nPayment Status: PAID\n\nमहत्त्वाची माहिती आणि Live Session ची लिंक खालील WhatsApp Community मधून दिली जाईल.\n\nWhatsApp Community मध्ये सहभागी होण्यासाठी खालील लिंकवर क्लिक करा 👇\n\n${communityLink}\n\nधन्यवाद,\nAI Marathi Guru`;
     }
-    return `नमस्कार ${fullName} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रक्रिया प्रलंबित आहे. कृपया खालील लिंकवरून ₹${amountPaid} पेमेंट पूर्ण करा:\nhttps://rzp.io/rzp/gAmUJOS0\n\nधन्यवाद!\nAI Marathi Guru`;
+    return `नमस्कार ${fullName} 👋\n\nतुमची AI Marathi Guru रजिस्ट्रेशन प्रक्रिया प्रलंबित आहे. कृपया खालील लिंकवरून ₹${amountPaid || 99} पेमेंट पूर्ण करा:${paymentLink ? `\n${paymentLink}` : ''}\n\nधन्यवाद!\nAI Marathi Guru`;
   };
 
   const handleCopy = () => {

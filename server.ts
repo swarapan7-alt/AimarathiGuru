@@ -521,8 +521,10 @@ function loadDB(): DBStructure {
         existingData?.siteSettings?.oldPrice ||
         999,
       razorpayPaymentLink:
-        existingData?.paymentSettings?.razorpayPaymentLink ||
-        "https://rzp.io/l/ai-marathi-guru",
+        existingData?.paymentSettings?.razorpayPaymentLink &&
+        !existingData.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
+          ? existingData.paymentSettings.razorpayPaymentLink
+          : "",
       paymentMode: existingData?.paymentSettings?.paymentMode || "both",
       razorpayKeyId:
         ENV_RAZORPAY_KEY_ID ||
@@ -729,7 +731,10 @@ function formatMessageTemplate(
     db.liveSessionSettings?.googleMeetLink ||
     "https://meet.google.com/amg-live-session";
   const paymentLink =
-    db.paymentSettings?.razorpayPaymentLink || "https://rzp.io/rzp/gAmUJOS0";
+    db.paymentSettings?.razorpayPaymentLink &&
+    !db.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
+      ? db.paymentSettings.razorpayPaymentLink
+      : "";
 
   // 1. Student Name replacements
   msg = msg.replace(/{Student Name}/gi, studentName);
@@ -1162,7 +1167,10 @@ app.post("/api/register", async (req, res) => {
         ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
       razorpayOrderId,
       paymentLink:
-        db.paymentSettings.razorpayPaymentLink || "https://rzp.io/rzp/gAmUJOS0",
+        db.paymentSettings?.razorpayPaymentLink &&
+        !db.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
+          ? db.paymentSettings.razorpayPaymentLink
+          : "",
       pendingRegistration: pendingStudent,
     });
   } catch (err: any) {

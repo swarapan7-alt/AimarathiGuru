@@ -31,7 +31,7 @@ export default function App() {
   const [currentRegistration, setCurrentRegistration] = useState<RegistrationRecord | null>(null);
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [communityLink, setCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-  const [paymentLink, setPaymentLink] = useState('https://rzp.io/l/ai-marathi-guru');
+  const [paymentLink, setPaymentLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Dynamic Content loaded from backend with persistent instant local storage cache
@@ -126,7 +126,11 @@ export default function App() {
         if (data.paymentSettings) {
           setPaymentSettings(data.paymentSettings);
           if (data.paymentSettings.courseFee) setCourseFee(data.paymentSettings.courseFee);
-          if (data.paymentSettings.razorpayPaymentLink) setPaymentLink(data.paymentSettings.razorpayPaymentLink);
+          if (data.paymentSettings.razorpayPaymentLink && !data.paymentSettings.razorpayPaymentLink.includes('gAmUJOS0')) {
+            setPaymentLink(data.paymentSettings.razorpayPaymentLink);
+          } else {
+            setPaymentLink('');
+          }
         }
         if (data.whatsappSettings) {
           setWhatsappSettings(data.whatsappSettings);

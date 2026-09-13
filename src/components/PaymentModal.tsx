@@ -40,7 +40,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onPaymentSuccess,
   fee = 99,
-  paymentLink = 'https://rzp.io/rzp/gAmUJOS0',
+  paymentLink = '',
 }) => {
   const [paymentState, setPaymentState] = useState<
     'IDLE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
@@ -57,7 +57,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const studentSlot = targetReg?.slotTimeDisplay || '';
   const activeTempId = tempId || targetReg?.tempId || targetReg?.id || '';
 
-  const activePaymentLink = paymentLink || 'https://rzp.io/rzp/gAmUJOS0';
+  const activePaymentLink =
+    paymentLink && !paymentLink.includes('gAmUJOS0') ? paymentLink.trim() : '';
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -127,10 +128,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const handleOpenRazorpay = async () => {
     setErrorMessage('');
 
-    // If a live Razorpay key is configured (i.e. starts with rzp_live), standard checkout is supported
-    const isLiveKey = Boolean(razorpayKeyId && razorpayKeyId.startsWith('rzp_live'));
+    // If a Razorpay key is configured (starts with rzp_live or rzp_test), standard checkout is supported
+    const hasKey = Boolean(
+      razorpayKeyId &&
+      (razorpayKeyId.startsWith('rzp_live') || razorpayKeyId.startsWith('rzp_test'))
+    );
     const rzpCheckoutAvailable =
-      isLiveKey &&
+      hasKey &&
       typeof window !== 'undefined' &&
       typeof (window as any).Razorpay !== 'undefined';
 
@@ -225,9 +229,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }
 
-    // Open Official Live Razorpay Payment Link (https://rzp.io/rzp/gAmUJOS0)
-    // On Mobile: Directly opens Razorpay Checkout with UPI Intent (PhonePe, GPay, Paytm)
-    // On Desktop: Directly displays official Razorpay Live UPI QR and all payment methods
+    // Open Official Razorpay Payment Link if configured
+    if (!activePaymentLink || activePaymentLink.includes('gAmUJOS0')) {
+      setErrorMessage(
+        'अधिकृत ₹99 Razorpay पेमेंट लिंक उपलब्ध नाही. कृपया ॲडमिन पॅनेलमधून (Payment Settings) वैध ₹99 पेमेंट लिंक सेट करा किंवा सपोर्टशी संपर्क साधा.'
+      );
+      return;
+    }
+
     try {
       window.open(activePaymentLink, '_blank', 'noopener,noreferrer');
     } catch (e) {

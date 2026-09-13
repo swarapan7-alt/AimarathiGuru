@@ -44,9 +44,7 @@ export const AdminWebsiteSettingsTab: React.FC<
   const [whatsappCommunityLink, setWhatsappCommunityLink] = useState(
     "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
   );
-  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState(
-    "https://rzp.io/l/ai-marathi-guru",
-  );
+  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
   const [googleMeetLink, setGoogleMeetLink] = useState(
     "https://meet.google.com/amg-live-session",
   );
@@ -111,8 +109,8 @@ export const AdminWebsiteSettingsTab: React.FC<
 
         if (data.whatsappSettings?.communityLink)
           setWhatsappCommunityLink(data.whatsappSettings.communityLink);
-        if (data.paymentSettings?.razorpayPaymentLink)
-          setRazorpayPaymentLink(data.paymentSettings.razorpayPaymentLink);
+        const pLink = data.paymentSettings?.razorpayPaymentLink;
+        setRazorpayPaymentLink(pLink && !pLink.includes("gAmUJOS0") ? pLink : "");
         if (data.liveSessionSettings?.googleMeetLink)
           setGoogleMeetLink(data.liveSessionSettings.googleMeetLink);
       }

@@ -93,6 +93,30 @@
   ],
   "students": [
     {
+      "id": "sess_1789315923760_r63m2nr",
+      "tempId": "sess_1789315923760_r63m2nr",
+      "fullName": "Rohan Patil",
+      "mobileNumber": "9876500001",
+      "whatsappNumber": "9876500001",
+      "email": "rohan@example.com",
+      "district": "महाराष्ट्र",
+      "occupation": "Other",
+      "courseDateId": "cd_2026_09_20",
+      "courseDateDisplay": "Sunday, 20 September 2026",
+      "selectedSlot": "slot1",
+      "slotTimeDisplay": "11:00 AM – 1:00 PM",
+      "agreedToFee": true,
+      "registrationDate": "2026-09-13T16:12:04.071Z",
+      "registrationStatus": "PENDING",
+      "paymentStatus": "PENDING",
+      "paymentVerified": false,
+      "paymentId": "",
+      "orderId": "order_TbaBTnamVqeSaP",
+      "amountPaid": 99,
+      "whatsappJoined": false,
+      "meetLink": "https://meet.google.com/amg-slot1-live"
+    },
+    {
       "id": "AMG-2026-00003",
       "fullName": "Pankaj",
       "mobileNumber": "9260555771",
@@ -156,7 +180,7 @@
   "paymentSettings": {
     "courseFee": 99,
     "originalFee": 999,
-    "razorpayPaymentLink": "https://rzp.io/rzp/gAmUJOS0",
+    "razorpayPaymentLink": "",
     "paymentMode": "both",
     "razorpayKeyId": "rzp_test_TNJSYVd2RrMPLA"
   },
@@ -464,7 +488,7 @@
       "timestamp": "2026-08-16T11:33:15.353Z",
       "adminUsername": "admin",
       "action": "UPDATE_PAYMENT_SETTINGS",
-      "details": "Updated Payment Settings: Fee ₹99, Link: https://rzp.io/rzp/gAmUJOS0"
+      "details": "Updated Payment Settings: Fee ₹99"
     },
     {
       "id": "log_1786874481383_566",
