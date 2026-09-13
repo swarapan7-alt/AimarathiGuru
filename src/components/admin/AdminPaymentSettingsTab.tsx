@@ -20,7 +20,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
   const [originalFee, setOriginalFee] = useState(999);
   const [razorpayLink, setRazorpayLink] = useState('');
   const [paymentMode, setPaymentMode] = useState<'payment_link' | 'razorpay_modal' | 'both'>('both');
-  const [razorpayKeyId, setRazorpayKeyId] = useState('rzp_live_defaultKey');
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);

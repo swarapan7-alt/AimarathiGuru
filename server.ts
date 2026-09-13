@@ -120,8 +120,31 @@ function verifyAdminToken(tokenString: string): {
   }
 }
 
-const ENV_RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "";
-const ENV_RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "";
+// Strict Razorpay LIVE Mode Configuration
+// Only Live keys (starting with rzp_live_) are accepted. Legacy rzp_test_ keys are strictly filtered out.
+function getLiveRazorpayKeyId(): string {
+  const envKey = (process.env.RAZORPAY_KEY_ID || "").trim();
+  if (envKey.startsWith("rzp_live_")) {
+    return envKey;
+  }
+  const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
+  if (dbKey.startsWith("rzp_live_")) {
+    return dbKey;
+  }
+  return "";
+}
+
+function getLiveRazorpayKeySecret(): string {
+  return (process.env.RAZORPAY_KEY_SECRET || "").trim();
+}
+
+function getLiveRazorpayWebhookSecret(): string {
+  return (
+    process.env.RAZORPAY_WEBHOOK_SECRET ||
+    process.env.RAZORPAY_KEY_SECRET ||
+    ""
+  ).trim();
+}
 
 // Default Modules Data (6 Clean Topics)
 const DEFAULT_MODULES = [
@@ -527,9 +550,10 @@ function loadDB(): DBStructure {
           : "",
       paymentMode: existingData?.paymentSettings?.paymentMode || "both",
       razorpayKeyId:
-        ENV_RAZORPAY_KEY_ID ||
-        existingData?.paymentSettings?.razorpayKeyId ||
-        "",
+        getLiveRazorpayKeyId() ||
+        (existingData?.paymentSettings?.razorpayKeyId?.startsWith("rzp_live_")
+          ? existingData.paymentSettings.razorpayKeyId
+          : ""),
     },
     whatsappSettings: {
       communityLink:
@@ -975,8 +999,7 @@ app.get("/api/payment-settings", (req, res) => {
     originalFee: db.paymentSettings.originalFee,
     razorpayPaymentLink: db.paymentSettings.razorpayPaymentLink,
     paymentMode: db.paymentSettings.paymentMode,
-    razorpayKeyId:
-      ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
+    razorpayKeyId: getLiveRazorpayKeyId(),
   });
 });
 
@@ -1080,14 +1103,16 @@ app.post("/api/register", async (req, res) => {
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
 
     let razorpayOrderId = "";
+    const liveKeyId = getLiveRazorpayKeyId();
+    const liveKeySecret = getLiveRazorpayKeySecret();
 
-    // If Razorpay API credentials exist, optionally create an order on Razorpay
-    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+    // If Razorpay LIVE API credentials exist, create a LIVE order on Razorpay
+    if (liveKeyId && liveKeySecret) {
       try {
         const authHeader =
           "Basic " +
           Buffer.from(
-            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+            `${liveKeyId}:${liveKeySecret}`,
           ).toString("base64");
         const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
           method: "POST",
@@ -1163,8 +1188,7 @@ app.post("/api/register", async (req, res) => {
       paymentStatus: "PENDING",
       amount: feeToCharge,
       courseFee: feeToCharge,
-      razorpayKeyId:
-        ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
+      razorpayKeyId: getLiveRazorpayKeyId(),
       razorpayOrderId,
       paymentLink:
         db.paymentSettings?.razorpayPaymentLink &&
@@ -1190,12 +1214,15 @@ app.post("/api/payment/create-order", async (req, res) => {
     const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 99;
 
     let orderId = "";
-    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+    const liveKeyId = getLiveRazorpayKeyId();
+    const liveKeySecret = getLiveRazorpayKeySecret();
+
+    if (liveKeyId && liveKeySecret) {
       try {
         const authHeader =
           "Basic " +
           Buffer.from(
-            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+            `${liveKeyId}:${liveKeySecret}`,
           ).toString("base64");
         const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
           method: "POST",
@@ -1238,7 +1265,7 @@ app.post("/api/payment/create-order", async (req, res) => {
       orderId,
       amount: feeToCharge * 100,
       currency: "INR",
-      keyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
+      keyId: getLiveRazorpayKeyId(),
     });
   } catch (err: any) {
     return res.status(500).json({ error: "Order creation failed" });
@@ -1335,9 +1362,12 @@ const handlePaymentVerification = async (
 
     // STEP 3 & STEP 9: Server-side cryptographic & API verification
     // A. Signature verification if signature & secret exist
-    if (razorpay_signature && razorpay_order_id && ENV_RAZORPAY_KEY_SECRET) {
+    const liveKeySecret = getLiveRazorpayKeySecret();
+    const liveKeyId = getLiveRazorpayKeyId();
+
+    if (razorpay_signature && razorpay_order_id && liveKeySecret) {
       const expectedSignature = crypto
-        .createHmac("sha256", ENV_RAZORPAY_KEY_SECRET)
+        .createHmac("sha256", liveKeySecret)
         .update(`${razorpay_order_id}|${payId}`)
         .digest("hex");
 
@@ -1358,15 +1388,15 @@ const handlePaymentVerification = async (
 
     // B. Razorpay API Live Verification (if API credentials configured and pay_... id)
     if (
-      ENV_RAZORPAY_KEY_ID &&
-      ENV_RAZORPAY_KEY_SECRET &&
+      liveKeyId &&
+      liveKeySecret &&
       payId.startsWith("pay_")
     ) {
       try {
         const authHeader =
           "Basic " +
           Buffer.from(
-            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+            `${liveKeyId}:${liveKeySecret}`,
           ).toString("base64");
         const rzpRes = await fetch(
           `https://api.razorpay.com/v1/payments/${payId}`,
@@ -1648,12 +1678,14 @@ const handlePaymentStatusCheck = async (
     }
 
     // 4. Proactive Razorpay Live API status lookup (if Razorpay API keys configured)
-    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
+    const liveKeyId = getLiveRazorpayKeyId();
+    const liveKeySecret = getLiveRazorpayKeySecret();
+    if (liveKeyId && liveKeySecret) {
       try {
         const authHeader =
           "Basic " +
           Buffer.from(
-            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+            `${liveKeyId}:${liveKeySecret}`,
           ).toString("base64");
         const paymentsRes = await fetch(
           "https://api.razorpay.com/v1/payments?count=15",
@@ -1794,8 +1826,7 @@ const handleRazorpayWebhook = async (
     console.log(`[RAZORPAY WEBHOOK] Received event: ${event}`);
 
     // If webhook secret configured, verify signature
-    const webhookSecret =
-      process.env.RAZORPAY_WEBHOOK_SECRET || ENV_RAZORPAY_KEY_SECRET;
+    const webhookSecret = getLiveRazorpayWebhookSecret();
     if (webhookSecret && webhookSignature) {
       const rawBody = JSON.stringify(webhookBody);
       const expectedSig = crypto
@@ -2389,7 +2420,10 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
     db.paymentSettings.paymentMode = paymentMode;
   }
   if (razorpayKeyId !== undefined) {
-    db.paymentSettings.razorpayKeyId = String(razorpayKeyId).trim();
+    const cleanKey = String(razorpayKeyId).trim();
+    if (cleanKey.startsWith("rzp_live_") || cleanKey === "") {
+      db.paymentSettings.razorpayKeyId = cleanKey;
+    }
   }
 
   saveDB(db);

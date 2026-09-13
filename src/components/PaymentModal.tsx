@@ -128,13 +128,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const handleOpenRazorpay = async () => {
     setErrorMessage('');
 
-    // If a Razorpay key is configured (starts with rzp_live or rzp_test), standard checkout is supported
-    const hasKey = Boolean(
-      razorpayKeyId &&
-      (razorpayKeyId.startsWith('rzp_live') || razorpayKeyId.startsWith('rzp_test'))
+    // Ensure ONLY Live Razorpay Key IDs (starting with rzp_live) are accepted for checkout
+    const isLiveKey = Boolean(
+      razorpayKeyId && razorpayKeyId.startsWith('rzp_live')
     );
     const rzpCheckoutAvailable =
-      hasKey &&
+      isLiveKey &&
       typeof window !== 'undefined' &&
       typeof (window as any).Razorpay !== 'undefined';
 
