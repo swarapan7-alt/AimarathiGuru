@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   Globe,
   Save,
@@ -14,33 +14,55 @@ import {
   Trash2,
   RefreshCw,
   ShieldCheck,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface AdminWebsiteSettingsTabProps {
   onRefresh?: () => void;
 }
 
-export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = ({ onRefresh }) => {
-  const [courseName, setCourseName] = useState('AI Marathi Guru');
+export const AdminWebsiteSettingsTab: React.FC<
+  AdminWebsiteSettingsTabProps
+> = ({ onRefresh }) => {
+  const [courseName, setCourseName] = useState("AI Marathi Guru");
   const [courseFee, setCourseFee] = useState(99);
   const [oldPrice, setOldPrice] = useState(999);
-  const [heroHeading, setHeroHeading] = useState('आता AI मराठीत शिका!');
-  const [heroSubtitle, setHeroSubtitle] = useState('AI शिका. व्यवसाय वाढवा. भविष्य घडवा.');
-  const [instructorName, setInstructorName] = useState('श्री. पंकज वाघमारे');
-  const [instructorNameEn, setInstructorNameEn] = useState('Mr. Pankaj Waghmare');
-  const [instructorTitle, setInstructorTitle] = useState('Founder & CEO, AI Marathi Guru');
-  const [instructorBio, setInstructorBio] = useState('८,०००+ मराठी विद्यार्थी, व्यावसायिक, शिक्षक व उद्योजकांना AI चे सोप्या भाषेत लाईव्ह ऑनलाईन प्रशिक्षण.');
-  const [instructorPhoto, setInstructorPhoto] = useState('/pankaj-photo.png');
-  const [whatsappCommunityLink, setWhatsappCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState('https://rzp.io/l/ai-marathi-guru');
-  const [googleMeetLink, setGoogleMeetLink] = useState('https://meet.google.com/amg-live-session');
-  const [instagramLink, setInstagramLink] = useState('https://instagram.com/aimarathiguru');
-  const [youtubeLink, setYoutubeLink] = useState('https://youtube.com/aimarathiguru');
-  const [contactNumber, setContactNumber] = useState('9801555171');
-  const [contactEmail, setContactEmail] = useState('contact@swaraudyog.com');
+  const [heroHeading, setHeroHeading] = useState("आता AI मराठीत शिका!");
+  const [heroSubtitle, setHeroSubtitle] = useState(
+    "AI शिका. व्यवसाय वाढवा. भविष्य घडवा.",
+  );
+  const [instructorName, setInstructorName] = useState("श्री. पंकज वाघमारे");
+  const [instructorNameEn, setInstructorNameEn] = useState(
+    "Mr. Pankaj Waghmare",
+  );
+  const [instructorTitle, setInstructorTitle] = useState(
+    "Founder & CEO, AI Marathi Guru",
+  );
+  const [instructorBio, setInstructorBio] = useState(
+    "८,०००+ मराठी विद्यार्थी, व्यावसायिक, शिक्षक व उद्योजकांना AI चे सोप्या भाषेत लाईव्ह ऑनलाईन प्रशिक्षण.",
+  );
+  const [instructorPhoto, setInstructorPhoto] = useState("/pankaj-photo.png");
+  const [whatsappCommunityLink, setWhatsappCommunityLink] = useState(
+    "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+  );
+  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState(
+    "https://rzp.io/l/ai-marathi-guru",
+  );
+  const [googleMeetLink, setGoogleMeetLink] = useState(
+    "https://meet.google.com/amg-live-session",
+  );
+  const [instagramLink, setInstagramLink] = useState(
+    "https://instagram.com/aimarathiguru",
+  );
+  const [youtubeLink, setYoutubeLink] = useState(
+    "https://youtube.com/aimarathiguru",
+  );
+  const [contactNumber, setContactNumber] = useState("9801555171");
+  const [contactEmail, setContactEmail] = useState("contact@swaraudyog.com");
 
   // Photo upload & persistence states
-  const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(null);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(
+    null,
+  );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoSavedSuccess, setPhotoSavedSuccess] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
@@ -56,9 +78,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
   const fetchWebsiteSettings = async () => {
     setIsLoading(true);
-    const token = localStorage.getItem('amg_admin_token');
+    const token = localStorage.getItem("amg_admin_token");
     try {
-      const res = await fetch('/api/admin/website-settings', {
+      const res = await fetch("/api/admin/website-settings", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -73,8 +95,13 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
         if (s.instructorNameEn) setInstructorNameEn(s.instructorNameEn);
         if (s.instructorTitle) setInstructorTitle(s.instructorTitle);
         if (s.instructorBio) setInstructorBio(s.instructorBio);
-        if (s.instructor_photo_url || s.instructorPhoto || s.instructorPhotoUrl) {
-          const resolved = s.instructor_photo_url || s.instructorPhoto || s.instructorPhotoUrl;
+        if (
+          s.instructor_photo_url ||
+          s.instructorPhoto ||
+          s.instructorPhotoUrl
+        ) {
+          const resolved =
+            s.instructor_photo_url || s.instructorPhoto || s.instructorPhotoUrl;
           setInstructorPhoto(resolved);
         }
         if (s.instagramLink) setInstagramLink(s.instagramLink);
@@ -82,9 +109,12 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
         if (s.contactNumber) setContactNumber(s.contactNumber);
         if (s.contactEmail) setContactEmail(s.contactEmail);
 
-        if (data.whatsappSettings?.communityLink) setWhatsappCommunityLink(data.whatsappSettings.communityLink);
-        if (data.paymentSettings?.razorpayPaymentLink) setRazorpayPaymentLink(data.paymentSettings.razorpayPaymentLink);
-        if (data.liveSessionSettings?.googleMeetLink) setGoogleMeetLink(data.liveSessionSettings.googleMeetLink);
+        if (data.whatsappSettings?.communityLink)
+          setWhatsappCommunityLink(data.whatsappSettings.communityLink);
+        if (data.paymentSettings?.razorpayPaymentLink)
+          setRazorpayPaymentLink(data.paymentSettings.razorpayPaymentLink);
+        if (data.liveSessionSettings?.googleMeetLink)
+          setGoogleMeetLink(data.liveSessionSettings.googleMeetLink);
       }
     } catch (e) {
       console.error(e);
@@ -97,8 +127,8 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setPhotoUploadError('कृपया केवळ इमेज फाईल (PNG, JPG, WEBP) निवडा.');
+    if (!file.type.startsWith("image/")) {
+      setPhotoUploadError("कृपया केवळ इमेज फाईल (PNG, JPG, WEBP) निवडा.");
       return;
     }
 
@@ -115,23 +145,25 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
   const handleUploadAndSavePhoto = async () => {
     const targetImage = selectedFilePreview || instructorPhoto;
     if (!targetImage) {
-      setPhotoUploadError('कृपया आधी फोटो निवडा किंवा URL टाका.');
+      setPhotoUploadError("कृपया आधी फोटो निवडा किंवा URL टाका.");
       return;
     }
     setIsUploadingPhoto(true);
     setPhotoUploadError(null);
     setPhotoSavedSuccess(false);
 
-    const token = localStorage.getItem('amg_admin_token');
+    const token = localStorage.getItem("amg_admin_token");
     try {
-      const res = await fetch('/api/admin/upload-instructor-photo', {
-        method: 'POST',
+      const res = await fetch("/api/admin/upload-instructor-photo", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          imageBase64: selectedFilePreview || (targetImage.startsWith('data:') ? targetImage : undefined),
+          imageBase64:
+            selectedFilePreview ||
+            (targetImage.startsWith("data:") ? targetImage : undefined),
           instructor_photo_url: targetImage,
           photoUrl: targetImage,
           instructorPhoto: targetImage,
@@ -140,19 +172,22 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
       const data = await res.json();
       if (res.ok) {
-        const savedUrl = data.instructor_photo_url || data.photoUrl || targetImage;
+        const savedUrl =
+          data.instructor_photo_url || data.photoUrl || targetImage;
         setInstructorPhoto(savedUrl);
         setPhotoSavedSuccess(true);
         setSelectedFilePreview(null);
-        window.dispatchEvent(new CustomEvent('websiteSettingsUpdated', { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("websiteSettingsUpdated", { detail: data }),
+        );
         if (onRefresh) onRefresh();
         setTimeout(() => setPhotoSavedSuccess(false), 5000);
       } else {
-        setPhotoUploadError(data.error || 'फोटो सेव्ह करताना त्रुटी आली.');
+        setPhotoUploadError(data.error || "फोटो सेव्ह करताना त्रुटी आली.");
       }
     } catch (err: any) {
       console.error(err);
-      setPhotoUploadError('सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.');
+      setPhotoUploadError("सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.");
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -160,37 +195,43 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
   // Explicitly remove instructor photo
   const handleRemovePhoto = async () => {
-    if (!window.confirm('तुम्हाला मार्गदर्शकांचा सध्याचा फोटो काढून टाकायचा आहे का?')) {
+    if (
+      !window.confirm(
+        "तुम्हाला मार्गदर्शकांचा सध्याचा फोटो काढून टाकायचा आहे का?",
+      )
+    ) {
       return;
     }
     setIsUploadingPhoto(true);
     setPhotoUploadError(null);
     setPhotoSavedSuccess(false);
 
-    const token = localStorage.getItem('amg_admin_token');
+    const token = localStorage.getItem("amg_admin_token");
     try {
-      const res = await fetch('/api/admin/remove-instructor-photo', {
-        method: 'POST',
+      const res = await fetch("/api/admin/remove-instructor-photo", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
 
       const data = await res.json();
       if (res.ok) {
-        setInstructorPhoto('');
+        setInstructorPhoto("");
         setSelectedFilePreview(null);
         setPhotoSavedSuccess(true);
-        window.dispatchEvent(new CustomEvent('websiteSettingsUpdated', { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("websiteSettingsUpdated", { detail: data }),
+        );
         if (onRefresh) onRefresh();
         setTimeout(() => setPhotoSavedSuccess(false), 4000);
       } else {
-        setPhotoUploadError(data.error || 'फोटो काढताना त्रुटी आली.');
+        setPhotoUploadError(data.error || "फोटो काढताना त्रुटी आली.");
       }
     } catch (err) {
       console.error(err);
-      setPhotoUploadError('सर्व्हर एरर.');
+      setPhotoUploadError("सर्व्हर एरर.");
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -201,13 +242,13 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
     setIsSaving(true);
     setSaveSuccess(false);
 
-    const token = localStorage.getItem('amg_admin_token');
+    const token = localStorage.getItem("amg_admin_token");
     const photoToSave = selectedFilePreview || instructorPhoto;
     try {
-      const res = await fetch('/api/admin/website-settings', {
-        method: 'PUT',
+      const res = await fetch("/api/admin/website-settings", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -222,7 +263,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
           instructorBio,
           instructorPhoto: photoToSave,
           instructor_photo_url: photoToSave,
-          imageBase64: selectedFilePreview || (photoToSave.startsWith('data:') ? photoToSave : undefined),
+          imageBase64:
+            selectedFilePreview ||
+            (photoToSave.startsWith("data:") ? photoToSave : undefined),
           whatsappCommunityLink,
           razorpayPaymentLink,
           googleMeetLink,
@@ -240,15 +283,17 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
           setSelectedFilePreview(null);
         }
         setSaveSuccess(true);
-        window.dispatchEvent(new CustomEvent('websiteSettingsUpdated', { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("websiteSettingsUpdated", { detail: data }),
+        );
         if (onRefresh) onRefresh();
         setTimeout(() => setSaveSuccess(false), 4000);
       } else {
-        alert('वेबसाईट सेटिंग्ज सेव्ह करता आल्या नाहीत.');
+        alert("वेबसाईट सेटिंग्ज सेव्ह करता आल्या नाहीत.");
       }
     } catch (e) {
       console.error(e);
-      alert('सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.');
+      alert("सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.");
     } finally {
       setIsSaving(false);
     }
@@ -256,7 +301,6 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
   return (
     <div className="space-y-4 max-w-5xl">
-      
       {/* Header Banner */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -267,7 +311,8 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
             Website Appearance & Instructor Settings
           </h1>
           <p className="text-xs text-slate-500 font-marathi-sub font-medium">
-            मार्गदर्शक फोटो, हिरो सेक्शन, मजकूर आणि मुख्य लिंक्स थेट व्यवस्थापित करा
+            मार्गदर्शक फोटो, हिरो सेक्शन, मजकूर आणि मुख्य लिंक्स थेट व्यवस्थापित
+            करा
           </p>
         </div>
 
@@ -276,7 +321,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
           disabled={isLoading}
           className="self-start sm:self-auto px-3.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-bold font-poppins flex items-center gap-1.5 transition cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh</span>
         </button>
       </div>
@@ -285,19 +332,21 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
       {/* SECTION A: INSTRUCTOR PROFILE & PHOTO MANAGEMENT                           */}
       {/* ========================================================================= */}
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-amber-300/60 shadow-sm space-y-4">
-        
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-stone-200 gap-2">
           <div>
             <div className="inline-flex items-center gap-1 text-xs font-black text-amber-600 uppercase tracking-widest font-poppins mb-1">
-              <Sparkles className="w-3.5 h-3.5" /> SECTION: CENTRAL INSTRUCTOR PROFILE
+              <Sparkles className="w-3.5 h-3.5" /> SECTION: CENTRAL INSTRUCTOR
+              PROFILE
             </div>
             <h2 className="text-base font-black text-slate-900 font-poppins flex items-center gap-2">
               <ImageIcon className="w-4 h-4 text-amber-600" />
               <span>INSTRUCTOR PROFILE & PHOTO</span>
             </h2>
             <p className="text-xs text-slate-500 font-marathi-sub mt-0.5">
-              येथे अपलोड केलेला फोटो <strong>Hero Section</strong> आणि <strong>Instructor Card</strong> या दोन्ही ठिकाणी आपोआप कायमस्वरूपी दिसेल.
+              येथे अपलोड केलेला फोटो <strong>Hero Section</strong> आणि{" "}
+              <strong>Instructor Card</strong> या दोन्ही ठिकाणी आपोआप
+              कायमस्वरूपी दिसेल.
             </p>
           </div>
 
@@ -323,7 +372,6 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          
           {/* 1. Current Photo Preview Card */}
           <div className="lg:col-span-4 flex flex-col items-center p-4 bg-gradient-to-b from-stone-50 to-stone-100 rounded-2xl border border-stone-200/90 text-center space-y-3">
             <span className="text-xs font-black text-slate-800 font-poppins uppercase tracking-wider">
@@ -340,8 +388,12 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               ) : (
                 <div className="flex flex-col items-center justify-center p-3 text-stone-400 text-center">
                   <User className="w-10 h-10 mb-2 text-stone-500" />
-                  <p className="text-xs font-bold text-white">फोटो उपलब्ध नाही</p>
-                  <p className="text-[10px] text-stone-400 font-poppins mt-1">Upload a photo below</p>
+                  <p className="text-xs font-bold text-white">
+                    फोटो उपलब्ध नाही
+                  </p>
+                  <p className="text-[10px] text-stone-400 font-poppins mt-1">
+                    Upload a photo below
+                  </p>
                 </div>
               )}
 
@@ -364,7 +416,6 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
           {/* 2. Upload, Replace, Remove, & Save Controls */}
           <div className="lg:col-span-8 space-y-4">
-            
             {/* Hidden native file input */}
             <input
               type="file"
@@ -387,7 +438,8 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
                   2. Upload New Photo / फोटो निवडा
                 </p>
                 <p className="text-xs text-slate-600 font-marathi-sub font-medium">
-                  येथे क्लिक करून आपल्या कॉम्प्युटर किंवा मोबाईलवरून <strong>पंकज सरांचा फोटो</strong> निवडा
+                  येथे क्लिक करून आपल्या कॉम्प्युटर किंवा मोबाईलवरून{" "}
+                  <strong>पंकज सरांचा फोटो</strong> निवडा
                 </p>
                 <p className="text-[10px] text-stone-400 font-poppins mt-1">
                   Supports: PNG, JPG, JPEG, WEBP • Max: 5MB
@@ -397,7 +449,6 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
             {/* Action Buttons: Replace Photo, Remove Photo, Save Changes */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              
               {/* 3. Replace Photo */}
               <button
                 type="button"
@@ -425,13 +476,16 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               <button
                 type="button"
                 onClick={handleUploadAndSavePhoto}
-                disabled={isUploadingPhoto || (!selectedFilePreview && !instructorPhoto)}
+                disabled={
+                  isUploadingPhoto || (!selectedFilePreview && !instructorPhoto)
+                }
                 className="px-5 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-black text-xs uppercase tracking-wider font-poppins flex items-center gap-2 transition shadow-md shadow-red-500/20 cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                <span>{isUploadingPhoto ? 'सेव्ह होत आहे...' : '5. Save Changes'}</span>
+                <span>
+                  {isUploadingPhoto ? "सेव्ह होत आहे..." : "5. Save Changes"}
+                </span>
               </button>
-
             </div>
 
             {/* Direct Image URL input (for hosted or relative paths) */}
@@ -458,21 +512,23 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
                 </button>
               </div>
             </div>
-
           </div>
-
         </div>
       </div>
 
       {/* ========================================================================= */}
       {/* SECTION B: WEBSITE CONTENT & CMS FORM                                     */}
       {/* ========================================================================= */}
-      <form onSubmit={handleSaveAll} className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm space-y-5">
-        
+      <form
+        onSubmit={handleSaveAll}
+        className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm space-y-5"
+      >
         {saveSuccess && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-extrabold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>वेबसाईट मजकूर आणि सेटिंग्ज यशस्वीरित्या अपडेट झाले आहेत!</span>
+            <span>
+              वेबसाईट मजकूर आणि सेटिंग्ज यशस्वीरित्या अपडेट झाले आहेत!
+            </span>
           </div>
         )}
 
@@ -485,7 +541,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Course Brand Name</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Course Brand Name
+              </label>
               <input
                 type="text"
                 required
@@ -495,7 +553,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Hero Main Heading</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Hero Main Heading
+              </label>
               <input
                 type="text"
                 required
@@ -505,7 +565,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Hero Subtitle / Tagline</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Hero Subtitle / Tagline
+              </label>
               <input
                 type="text"
                 required
@@ -526,7 +588,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Instructor Full Name (मराठी)</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Instructor Full Name (मराठी)
+              </label>
               <input
                 type="text"
                 required
@@ -536,7 +600,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Instructor Full Name (English)</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Instructor Full Name (English)
+              </label>
               <input
                 type="text"
                 value={instructorNameEn}
@@ -545,7 +611,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Designation / Title</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Designation / Title
+              </label>
               <input
                 type="text"
                 required
@@ -555,7 +623,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Instructor Short Bio</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Instructor Short Bio
+              </label>
               <textarea
                 rows={2}
                 value={instructorBio}
@@ -575,7 +645,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">WhatsApp Community Link</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                WhatsApp Community Link
+              </label>
               <input
                 type="url"
                 required
@@ -585,7 +657,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Razorpay Payment Link</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Razorpay Payment Link
+              </label>
               <input
                 type="url"
                 required
@@ -595,7 +669,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Default Google Meet Link (Live Session)</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Default Google Meet Link (Live Session)
+              </label>
               <input
                 type="url"
                 value={googleMeetLink}
@@ -616,7 +692,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Support Contact Number</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Support Contact Number
+              </label>
               <input
                 type="text"
                 value={contactNumber}
@@ -625,7 +703,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Support Email</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Support Email
+              </label>
               <input
                 type="email"
                 value={contactEmail}
@@ -634,7 +714,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Instagram Profile URL</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                Instagram Profile URL
+              </label>
               <input
                 type="url"
                 value={instagramLink}
@@ -643,7 +725,9 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">YouTube Channel URL</label>
+              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
+                YouTube Channel URL
+              </label>
               <input
                 type="url"
                 value={youtubeLink}
@@ -662,12 +746,12 @@ export const AdminWebsiteSettingsTab: React.FC<AdminWebsiteSettingsTabProps> = (
             className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-blue-500/20 cursor-pointer disabled:opacity-50 font-poppins"
           >
             <Save className="w-4 h-4" />
-            <span>{isSaving ? 'सेव्ह होत आहे...' : 'Save All Website Settings'}</span>
+            <span>
+              {isSaving ? "सेव्ह होत आहे..." : "Save All Website Settings"}
+            </span>
           </button>
         </div>
-
       </form>
-
     </div>
   );
 };

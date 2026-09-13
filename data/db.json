@@ -13,17 +13,17 @@
   ],
   "courseDates": [
     {
-      "id": "cd_2026_08_16",
-      "date": "2026-08-23",
-      "displayDate": "Sunday, 23 August 2026",
+      "id": "cd_2026_09_20",
+      "date": "2026-09-20",
+      "displayDate": "Sunday, 20 September 2026",
       "enabled": true,
       "slot1": {
         "id": "slot1",
         "name": "Slot 1 (सकाळ)",
         "startTime": "11:00 AM",
         "endTime": "1:00 PM",
-        "capacity": 1000,
-        "booked": 19,
+        "capacity": 100,
+        "booked": 24,
         "enabled": true,
         "meetLink": "https://meet.google.com/amg-slot1-live"
       },
@@ -32,8 +32,34 @@
         "name": "Slot 2 (संध्याकाळ)",
         "startTime": "7:00 PM",
         "endTime": "9:00 PM",
-        "capacity": 1000,
-        "booked": 32,
+        "capacity": 100,
+        "booked": 38,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot2-live"
+      }
+    },
+    {
+      "id": "cd_2026_09_27",
+      "date": "2026-09-27",
+      "displayDate": "Sunday, 27 September 2026",
+      "enabled": true,
+      "slot1": {
+        "id": "slot1",
+        "name": "Slot 1 (सकाळ)",
+        "startTime": "11:00 AM",
+        "endTime": "1:00 PM",
+        "capacity": 100,
+        "booked": 8,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot1-live"
+      },
+      "slot2": {
+        "id": "slot2",
+        "name": "Slot 2 (संध्याकाळ)",
+        "startTime": "7:00 PM",
+        "endTime": "9:00 PM",
+        "capacity": 100,
+        "booked": 12,
         "enabled": true,
         "meetLink": "https://meet.google.com/amg-slot2-live"
       }
@@ -42,7 +68,7 @@
       "id": "cd_2026_08_23",
       "date": "2026-08-23",
       "displayDate": "Sunday, 23 August 2026",
-      "enabled": true,
+      "enabled": false,
       "slot1": {
         "id": "slot1",
         "name": "Slot 1 (सकाळ)",

@@ -1,21 +1,21 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config({ override: true });
-import express from 'express';
-import path from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import express from "express";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
+import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 
 // Resolve Root & Directories using process.cwd()
 const ROOT_DIR = process.cwd();
-const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
-const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
-const DATA_DIR = path.join(ROOT_DIR, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const PUBLIC_DIR = path.join(ROOT_DIR, "public");
+const UPLOADS_DIR = path.join(PUBLIC_DIR, "uploads");
+const DATA_DIR = path.join(ROOT_DIR, "data");
+const DB_FILE = path.join(DATA_DIR, "db.json");
 
 // Ensure Public & Uploads Directory Exists
 if (!fs.existsSync(PUBLIC_DIR)) {
@@ -28,19 +28,21 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static(PUBLIC_DIR));
-app.use('/public', express.static(PUBLIC_DIR));
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use("/public", express.static(PUBLIC_DIR));
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 // Password Hashing Utility & Admin Auth Config
-const AUTH_SECRET = process.env.AUTH_SALT || 'AMG_SECURE_AUTH_SESSION_KEY_2026';
+const AUTH_SECRET = process.env.AUTH_SALT || "AMG_SECURE_AUTH_SESSION_KEY_2026";
 
 let db: DBStructure | null = null;
 
 function hashPassword(password: string): string {
-  return crypto.pbkdf2Sync(password, AUTH_SECRET, 1000, 64, 'sha512').toString('hex');
+  return crypto
+    .pbkdf2Sync(password, AUTH_SECRET, 1000, 64, "sha512")
+    .toString("hex");
 }
 
 // Configurable Admin Credentials:
@@ -48,11 +50,15 @@ function hashPassword(password: string): string {
 // Priority 2: Database Hashed Admin Record (db.admins)
 // Default Username: aimarathi
 function getAdminCredentials() {
-  const envUser = process.env.ADMIN_USERNAME ? process.env.ADMIN_USERNAME.trim() : '';
-  const envPass = process.env.ADMIN_PASSWORD ? process.env.ADMIN_PASSWORD.trim() : '';
+  const envUser = process.env.ADMIN_USERNAME
+    ? process.env.ADMIN_USERNAME.trim()
+    : "";
+  const envPass = process.env.ADMIN_PASSWORD
+    ? process.env.ADMIN_PASSWORD.trim()
+    : "";
 
-  const dbUser = db?.admins?.[0]?.username || '';
-  const username = envUser || dbUser || 'aimarathi';
+  const dbUser = db?.admins?.[0]?.username || "";
+  const username = envUser || dbUser || "aimarathi";
   const password = envPass;
   const hasDbPassword = Boolean(db?.admins?.[0]?.passwordHash);
 
@@ -67,31 +73,44 @@ function getAdminCredentials() {
 function createAdminToken(username: string): string {
   const payload = {
     username,
-    role: 'SUPER_ADMIN',
+    role: "SUPER_ADMIN",
     ts: Date.now(),
   };
-  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64');
-  const signature = crypto.createHmac('sha256', AUTH_SECRET).update(payloadB64).digest('hex');
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+  const signature = crypto
+    .createHmac("sha256", AUTH_SECRET)
+    .update(payloadB64)
+    .digest("hex");
   return `${payloadB64}.${signature}`;
 }
 
-function verifyAdminToken(tokenString: string): { valid: boolean; username?: string } {
+function verifyAdminToken(tokenString: string): {
+  valid: boolean;
+  username?: string;
+} {
   try {
     if (!tokenString) return { valid: false };
-    
+
     // Support HMAC signed tokens
-    if (tokenString.includes('.')) {
-      const [payloadB64, signature] = tokenString.split('.');
-      const expectedSignature = crypto.createHmac('sha256', AUTH_SECRET).update(payloadB64).digest('hex');
+    if (tokenString.includes(".")) {
+      const [payloadB64, signature] = tokenString.split(".");
+      const expectedSignature = crypto
+        .createHmac("sha256", AUTH_SECRET)
+        .update(payloadB64)
+        .digest("hex");
       if (signature !== expectedSignature) {
         return { valid: false };
       }
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf-8'));
+      const payload = JSON.parse(
+        Buffer.from(payloadB64, "base64").toString("utf-8"),
+      );
       return { valid: true, username: payload.username };
     }
 
     // Support legacy base64 tokens for backward compatibility
-    const legacyDecoded = JSON.parse(Buffer.from(tokenString, 'base64').toString('utf-8'));
+    const legacyDecoded = JSON.parse(
+      Buffer.from(tokenString, "base64").toString("utf-8"),
+    );
     if (legacyDecoded && legacyDecoded.username) {
       return { valid: true, username: legacyDecoded.username };
     }
@@ -101,78 +120,112 @@ function verifyAdminToken(tokenString: string): { valid: boolean; username?: str
   }
 }
 
-const ENV_RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
-const ENV_RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+const ENV_RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "";
+const ENV_RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "";
 
 // Default Modules Data (6 Clean Topics)
 const DEFAULT_MODULES = [
   {
     id: 1,
-    title: 'ChatGPT Basics',
-    titleEn: 'ChatGPT Basics',
-    iconName: 'MessageSquareText',
-    topics: ['मराठीत ChatGPT चा उपयोग', 'योग्य प्रॉम्ट्स लिहिणे', 'ईमेल, पत्र व कंटेंट रायटिंग', 'बिझनेस कल्पना व प्लॅनिंग'],
-    gradient: 'from-amber-500 to-red-600',
+    title: "ChatGPT Basics",
+    titleEn: "ChatGPT Basics",
+    iconName: "MessageSquareText",
+    topics: [
+      "मराठीत ChatGPT चा उपयोग",
+      "योग्य प्रॉम्ट्स लिहिणे",
+      "ईमेल, पत्र व कंटेंट रायटिंग",
+      "बिझनेस कल्पना व प्लॅनिंग",
+    ],
+    gradient: "from-amber-500 to-red-600",
   },
   {
     id: 2,
-    title: 'Google Gemini',
-    titleEn: 'Google Gemini',
-    iconName: 'Sparkles',
-    topics: ['Gemini चा practical वापर', 'लाईव्ह माहिती व रिसर्च', 'डॉक्युमेंट्स व डेटा विश्लेषण', 'स्मार्ट दैनंदिन वापर'],
-    gradient: 'from-blue-600 to-indigo-600',
+    title: "Google Gemini",
+    titleEn: "Google Gemini",
+    iconName: "Sparkles",
+    topics: [
+      "Gemini चा practical वापर",
+      "लाईव्ह माहिती व रिसर्च",
+      "डॉक्युमेंट्स व डेटा विश्लेषण",
+      "स्मार्ट दैनंदिन वापर",
+    ],
+    gradient: "from-blue-600 to-indigo-600",
   },
   {
     id: 3,
-    title: 'Jio + Google Gemini',
-    titleEn: 'Jio + Gemini Benefits',
-    iconName: 'Smartphone',
-    topics: ['Jio ₹349 प्लॅन व Google Gemini benefits', 'Eligible users साठी ऑफर समजून घेणे', 'मोबाईलवर AI चा सुलभ वापर', 'फायदे आणि ॲक्टिव्हेशन माहिती'],
-    gradient: 'from-indigo-600 to-blue-700',
+    title: "Jio + Google Gemini",
+    titleEn: "Jio + Gemini Benefits",
+    iconName: "Smartphone",
+    topics: [
+      "Jio ₹349 प्लॅन व Google Gemini benefits",
+      "Eligible users साठी ऑफर समजून घेणे",
+      "मोबाईलवर AI चा सुलभ वापर",
+      "फायदे आणि ॲक्टिव्हेशन माहिती",
+    ],
+    gradient: "from-indigo-600 to-blue-700",
   },
   {
     id: 4,
-    title: 'AI Poster Design',
-    titleEn: 'AI Poster Design',
-    iconName: 'Palette',
-    topics: ['AI वापरून आकर्षक पोस्टर तयार करणे', 'सोशल मीडिया व सण-उत्सव ग्राफिक्स', 'व्यवसाय जाहिरात बॅनर', 'मराठी फॉन्ट व लेआउट्स'],
-    gradient: 'from-purple-600 to-indigo-600',
+    title: "AI Poster Design",
+    titleEn: "AI Poster Design",
+    iconName: "Palette",
+    topics: [
+      "AI वापरून आकर्षक पोस्टर तयार करणे",
+      "सोशल मीडिया व सण-उत्सव ग्राफिक्स",
+      "व्यवसाय जाहिरात बॅनर",
+      "मराठी फॉन्ट व लेआउट्स",
+    ],
+    gradient: "from-purple-600 to-indigo-600",
   },
   {
     id: 5,
-    title: 'AI Video Creation',
-    titleEn: 'AI Video Creation',
-    iconName: 'Video',
-    topics: ['AI Tools वापरून basic video creation', 'AI व्हॉईसओव्हर निर्मिती', 'बिना चेहऱ्याचे रील व व्हिडिओ', 'व्हिडिओ एडिट बेसिक टिप्स'],
-    gradient: 'from-[#E53935] to-amber-600',
+    title: "AI Video Creation",
+    titleEn: "AI Video Creation",
+    iconName: "Video",
+    topics: [
+      "AI Tools वापरून basic video creation",
+      "AI व्हॉईसओव्हर निर्मिती",
+      "बिना चेहऱ्याचे रील व व्हिडिओ",
+      "व्हिडिओ एडिट बेसिक टिप्स",
+    ],
+    gradient: "from-[#E53935] to-amber-600",
   },
   {
     id: 6,
-    title: 'Instagram for Business',
-    titleEn: 'Instagram for Business',
-    iconName: 'Instagram',
-    topics: ['Instagram account सेटअप व ब्रँडिंग', 'Business promotion basics', 'AI द्वारे व्हायरल रील कल्पना', 'कॅप्शन व हॅशटॅग स्ट्रॅटेजी'],
-    gradient: 'from-pink-600 to-rose-600',
+    title: "Instagram for Business",
+    titleEn: "Instagram for Business",
+    iconName: "Instagram",
+    topics: [
+      "Instagram account सेटअप व ब्रँडिंग",
+      "Business promotion basics",
+      "AI द्वारे व्हायरल रील कल्पना",
+      "कॅप्शन व हॅशटॅग स्ट्रॅटेजी",
+    ],
+    gradient: "from-pink-600 to-rose-600",
   },
 ];
 
 // Default FAQs (4 Focused Questions)
 const DEFAULT_FAQS = [
   {
-    question: 'ही Training कोणासाठी आहे?',
-    answer: 'हा कोर्स विद्यार्थी, व्यावसायिक, शेतकरी, शिक्षक, महा-ई-सेवा चालक, गृहिणी आणि AI शिकू इच्छिणाऱ्या प्रत्येकासाठी अत्यंत सोप्या मराठी भाषेत तयार केला आहे.',
+    question: "ही Training कोणासाठी आहे?",
+    answer:
+      "हा कोर्स विद्यार्थी, व्यावसायिक, शेतकरी, शिक्षक, महा-ई-सेवा चालक, गृहिणी आणि AI शिकू इच्छिणाऱ्या प्रत्येकासाठी अत्यंत सोप्या मराठी भाषेत तयार केला आहे.",
   },
   {
-    question: 'मोबाईलवरून Join करता येईल का?',
-    answer: 'होय! तुमच्याकडे कॉम्प्युटर किंवा लॅपटॉप नसला तरी तुम्ही मोबाईलवरून Google Meet द्वारे थेट आणि सहज जॉईन करू शकता.',
+    question: "मोबाईलवरून Join करता येईल का?",
+    answer:
+      "होय! तुमच्याकडे कॉम्प्युटर किंवा लॅपटॉप नसला तरी तुम्ही मोबाईलवरून Google Meet द्वारे थेट आणि सहज जॉईन करू शकता.",
   },
   {
-    question: 'Training किती वेळाची आहे?',
-    answer: 'ही २ तासांची टू-द-पॉइंट Practical Live Online Training आहे. यामध्ये स्क्रीन शेअरिंगसह प्रत्यक्ष वापर दाखवला जाईल.',
+    question: "Training किती वेळाची आहे?",
+    answer:
+      "ही २ तासांची टू-द-पॉइंट Practical Live Online Training आहे. यामध्ये स्क्रीन शेअरिंगसह प्रत्यक्ष वापर दाखवला जाईल.",
   },
   {
-    question: 'Payment नंतर काय मिळेल?',
-    answer: 'पेमेंट यशस्वी होताच तुम्हाला स्क्रीनवर आणि व्हॉट्सॲपवर त्वरित Registration ID, Official WhatsApp Community लिंक आणि Google Meet क्लास लिंक मिळेल.',
+    question: "Payment नंतर काय मिळेल?",
+    answer:
+      "पेमेंट यशस्वी होताच तुम्हाला स्क्रीनवर आणि व्हॉट्सॲपवर त्वरित Registration ID, Official WhatsApp Community लिंक आणि Google Meet क्लास लिंक मिळेल.",
   },
 ];
 
@@ -194,7 +247,7 @@ interface DBStructure {
     displayDate: string;
     enabled: boolean;
     slot1: {
-      id: 'slot1';
+      id: "slot1";
       name: string;
       startTime: string;
       endTime: string;
@@ -204,7 +257,7 @@ interface DBStructure {
       meetLink: string;
     };
     slot2: {
-      id: 'slot2';
+      id: "slot2";
       name: string;
       startTime: string;
       endTime: string;
@@ -225,12 +278,12 @@ interface DBStructure {
     occupation: string;
     courseDateId: string;
     courseDateDisplay: string;
-    selectedSlot: 'slot1' | 'slot2';
+    selectedSlot: "slot1" | "slot2";
     slotTimeDisplay: string;
     agreedToFee: boolean;
     registrationDate: string;
-    registrationStatus?: 'CONFIRMED' | 'PENDING' | 'FAILED' | 'CANCELLED';
-    paymentStatus: 'PAID' | 'PENDING' | 'FAILED' | 'CANCELLED';
+    registrationStatus?: "CONFIRMED" | "PENDING" | "FAILED" | "CANCELLED";
+    paymentStatus: "PAID" | "PENDING" | "FAILED" | "CANCELLED";
     paymentVerified?: boolean;
     paymentId: string;
     orderId?: string;
@@ -246,7 +299,7 @@ interface DBStructure {
     courseFee: number;
     originalFee: number;
     razorpayPaymentLink: string;
-    paymentMode: 'payment_link' | 'razorpay_modal' | 'both';
+    paymentMode: "payment_link" | "razorpay_modal" | "both";
     razorpayKeyId: string;
   };
   whatsappSettings: {
@@ -299,7 +352,12 @@ interface DBStructure {
     instructorPhoto: string;
     instructor_photo_url?: string;
     instructorPhotoUrl?: string;
-    courseScreenshots?: Array<{ id: string; title: string; imageUrl: string; description?: string }>;
+    courseScreenshots?: Array<{
+      id: string;
+      title: string;
+      imageUrl: string;
+      description?: string;
+    }>;
     modules: typeof DEFAULT_MODULES;
     faqs: typeof DEFAULT_FAQS;
   };
@@ -318,20 +376,20 @@ function loadDB(): DBStructure {
   let existingData: Partial<DBStructure> | null = null;
   if (fs.existsSync(DB_FILE)) {
     try {
-      existingData = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+      existingData = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
     } catch (e) {
-      console.error('Failed reading db.json, creating initial setup:', e);
+      console.error("Failed reading db.json, creating initial setup:", e);
     }
   }
 
   const { username: envUser } = getAdminCredentials();
   const initialAdmins = [
     {
-      id: 'admin_1',
-      username: envUser || 'aimarathi',
-      passwordHash: '',
-      name: 'Super Administrator',
-      role: 'SUPER_ADMIN',
+      id: "admin_1",
+      username: envUser || "aimarathi",
+      passwordHash: "",
+      name: "Super Administrator",
+      role: "SUPER_ADMIN",
       mustChangePassword: false,
       active: true,
       createdAt: new Date().toISOString(),
@@ -350,190 +408,260 @@ function loadDB(): DBStructure {
   };
 
   const initialDB: DBStructure = {
-    admins: existingData?.admins && existingData.admins.length > 0 ? existingData.admins : initialAdmins,
-    courseDates: existingData?.courseDates && existingData.courseDates.length > 0 ? existingData.courseDates : [
-      {
-        id: 'cd_2026_08_23',
-        date: '2026-08-23',
-        displayDate: 'Sunday, 23 August 2026',
-        enabled: true,
-        slot1: {
-          id: 'slot1',
-          name: 'Slot 1 (सकाळ)',
-          startTime: '11:00 AM',
-          endTime: '1:00 PM',
-          capacity: 50,
-          booked: 14,
-          enabled: true,
-          meetLink: 'https://meet.google.com/amg-slot1-live',
-        },
-        slot2: {
-          id: 'slot2',
-          name: 'Slot 2 (संध्याकाळ)',
-          startTime: '7:00 PM',
-          endTime: '9:00 PM',
-          capacity: 50,
-          booked: 28,
-          enabled: true,
-          meetLink: 'https://meet.google.com/amg-slot2-live',
-        },
-      },
-      {
-        id: 'cd_2026_08_30',
-        date: '2026-08-30',
-        displayDate: 'Sunday, 30 August 2026',
-        enabled: true,
-        slot1: {
-          id: 'slot1',
-          name: 'Slot 1 (सकाळ)',
-          startTime: '11:00 AM',
-          endTime: '1:00 PM',
-          capacity: 50,
-          booked: 4,
-          enabled: true,
-          meetLink: 'https://meet.google.com/amg-slot1-live',
-        },
-        slot2: {
-          id: 'slot2',
-          name: 'Slot 2 (संध्याकाळ)',
-          startTime: '7:00 PM',
-          endTime: '9:00 PM',
-          capacity: 50,
-          booked: 8,
-          enabled: true,
-          meetLink: 'https://meet.google.com/amg-slot2-live',
-        },
-      },
-    ],
+    admins:
+      existingData?.admins && existingData.admins.length > 0
+        ? existingData.admins
+        : initialAdmins,
+    courseDates:
+      existingData?.courseDates && existingData.courseDates.length > 0
+        ? existingData.courseDates
+        : [
+            {
+              id: "cd_2026_09_20",
+              date: "2026-09-20",
+              displayDate: "Sunday, 20 September 2026",
+              enabled: true,
+              slot1: {
+                id: "slot1",
+                name: "Slot 1 (सकाळ)",
+                startTime: "11:00 AM",
+                endTime: "1:00 PM",
+                capacity: 50,
+                booked: 14,
+                enabled: true,
+                meetLink: "https://meet.google.com/amg-slot1-live",
+              },
+              slot2: {
+                id: "slot2",
+                name: "Slot 2 (संध्याकाळ)",
+                startTime: "7:00 PM",
+                endTime: "9:00 PM",
+                capacity: 50,
+                booked: 28,
+                enabled: true,
+                meetLink: "https://meet.google.com/amg-slot2-live",
+              },
+            },
+            {
+              id: "cd_2026_09_27",
+              date: "2026-09-27",
+              displayDate: "Sunday, 27 September 2026",
+              enabled: true,
+              slot1: {
+                id: "slot1",
+                name: "Slot 1 (सकाळ)",
+                startTime: "11:00 AM",
+                endTime: "1:00 PM",
+                capacity: 50,
+                booked: 4,
+                enabled: true,
+                meetLink: "https://meet.google.com/amg-slot1-live",
+              },
+              slot2: {
+                id: "slot2",
+                name: "Slot 2 (संध्याकाळ)",
+                startTime: "7:00 PM",
+                endTime: "9:00 PM",
+                capacity: 50,
+                booked: 8,
+                enabled: true,
+                meetLink: "https://meet.google.com/amg-slot2-live",
+              },
+            },
+          ],
     students: existingData?.students || [
       {
-        id: 'AMG-2026-00001',
-        fullName: 'विकास चंद्रकांत पाटील',
-        mobileNumber: '9876543210',
-        whatsappNumber: '9876543210',
-        email: 'vikas.patil@example.com',
-        district: 'पुणे (Pune)',
-        occupation: 'CSC Operator',
-        courseDateId: 'cd_2026_08_23',
-        courseDateDisplay: 'Sunday, 23 August 2026',
-        selectedSlot: 'slot1',
-        slotTimeDisplay: '11:00 AM – 1:00 PM',
+        id: "AMG-2026-00001",
+        fullName: "विकास चंद्रकांत पाटील",
+        mobileNumber: "9876543210",
+        whatsappNumber: "9876543210",
+        email: "vikas.patil@example.com",
+        district: "पुणे (Pune)",
+        occupation: "CSC Operator",
+        courseDateId: "cd_2026_08_23",
+        courseDateDisplay: "Sunday, 23 August 2026",
+        selectedSlot: "slot1",
+        slotTimeDisplay: "11:00 AM – 1:00 PM",
         agreedToFee: true,
         registrationDate: new Date().toISOString(),
-        paymentStatus: 'PAID',
-        paymentId: 'pay_RZP819204128',
+        paymentStatus: "PAID",
+        paymentId: "pay_RZP819204128",
         amountPaid: 99,
         whatsappJoined: true,
-        meetLink: 'https://meet.google.com/amg-slot1-live',
+        meetLink: "https://meet.google.com/amg-slot1-live",
       },
       {
-        id: 'AMG-2026-00002',
-        fullName: 'प्रिया रामेश्वर कुलकर्णी',
-        mobileNumber: '9123456789',
-        whatsappNumber: '9123456789',
-        email: 'priya.kulkarni@example.com',
-        district: 'छत्रपती संभाजीनगर',
-        occupation: 'Student',
-        courseDateId: 'cd_2026_08_23',
-        selectedSlot: 'slot2',
-        courseDateDisplay: 'Sunday, 23 August 2026',
-        slotTimeDisplay: '7:00 PM – 9:00 PM',
+        id: "AMG-2026-00002",
+        fullName: "प्रिया रामेश्वर कुलकर्णी",
+        mobileNumber: "9123456789",
+        whatsappNumber: "9123456789",
+        email: "priya.kulkarni@example.com",
+        district: "छत्रपती संभाजीनगर",
+        occupation: "Student",
+        courseDateId: "cd_2026_08_23",
+        selectedSlot: "slot2",
+        courseDateDisplay: "Sunday, 23 August 2026",
+        slotTimeDisplay: "7:00 PM – 9:00 PM",
         agreedToFee: true,
         registrationDate: new Date().toISOString(),
-        paymentStatus: 'PAID',
-        paymentId: 'pay_RZP981042711',
+        paymentStatus: "PAID",
+        paymentId: "pay_RZP981042711",
         amountPaid: 99,
         whatsappJoined: false,
-        meetLink: 'https://meet.google.com/amg-slot2-live',
+        meetLink: "https://meet.google.com/amg-slot2-live",
       },
     ],
     paymentSettings: {
-      courseFee: existingData?.paymentSettings?.courseFee || existingData?.siteSettings?.courseFee || 99,
-      originalFee: existingData?.paymentSettings?.originalFee || existingData?.siteSettings?.oldPrice || 999,
-      razorpayPaymentLink: existingData?.paymentSettings?.razorpayPaymentLink || 'https://rzp.io/l/ai-marathi-guru',
-      paymentMode: existingData?.paymentSettings?.paymentMode || 'both',
-      razorpayKeyId: ENV_RAZORPAY_KEY_ID || existingData?.paymentSettings?.razorpayKeyId || '',
+      courseFee:
+        existingData?.paymentSettings?.courseFee ||
+        existingData?.siteSettings?.courseFee ||
+        99,
+      originalFee:
+        existingData?.paymentSettings?.originalFee ||
+        existingData?.siteSettings?.oldPrice ||
+        999,
+      razorpayPaymentLink:
+        existingData?.paymentSettings?.razorpayPaymentLink ||
+        "https://rzp.io/l/ai-marathi-guru",
+      paymentMode: existingData?.paymentSettings?.paymentMode || "both",
+      razorpayKeyId:
+        ENV_RAZORPAY_KEY_ID ||
+        existingData?.paymentSettings?.razorpayKeyId ||
+        "",
     },
     whatsappSettings: {
-      communityLink: existingData?.whatsappSettings?.communityLink || existingData?.communicationSettings?.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
-      groupLink: existingData?.whatsappSettings?.groupLink || existingData?.communicationSettings?.groupLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
-      adminWhatsAppNumber: existingData?.whatsappSettings?.adminWhatsAppNumber || existingData?.communicationSettings?.businessNumber || '9801555171',
-      customSuccessMessage: existingData?.whatsappSettings?.customSuccessMessage || 'तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.',
-      buttonText: existingData?.whatsappSettings?.buttonText || 'JOIN WHATSAPP COMMUNITY',
+      communityLink:
+        existingData?.whatsappSettings?.communityLink ||
+        existingData?.communicationSettings?.communityLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+      groupLink:
+        existingData?.whatsappSettings?.groupLink ||
+        existingData?.communicationSettings?.groupLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+      adminWhatsAppNumber:
+        existingData?.whatsappSettings?.adminWhatsAppNumber ||
+        existingData?.communicationSettings?.businessNumber ||
+        "9801555171",
+      customSuccessMessage:
+        existingData?.whatsappSettings?.customSuccessMessage ||
+        "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
+      buttonText:
+        existingData?.whatsappSettings?.buttonText || "JOIN WHATSAPP COMMUNITY",
     },
     communicationSettings: {
-      businessNumber: existingData?.communicationSettings?.businessNumber || '9801555171',
-      communityLink: existingData?.communicationSettings?.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
-      groupLink: existingData?.communicationSettings?.groupLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
-      adminWhatsAppNumber: '9801555171',
-      customSuccessMessage: 'तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.',
-      buttonText: 'JOIN WHATSAPP COMMUNITY',
-      supportLink: 'https://wa.me/919801555171',
+      businessNumber:
+        existingData?.communicationSettings?.businessNumber || "9801555171",
+      communityLink:
+        existingData?.communicationSettings?.communityLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+      groupLink:
+        existingData?.communicationSettings?.groupLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+      adminWhatsAppNumber: "9801555171",
+      customSuccessMessage:
+        "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
+      buttonText: "JOIN WHATSAPP COMMUNITY",
+      supportLink: "https://wa.me/919801555171",
       templates: {
         ...defaultTemplates,
         ...(existingData?.communicationSettings?.templates || {}),
       },
     },
     liveSessionSettings: {
-      googleMeetLink: existingData?.liveSessionSettings?.googleMeetLink || 'https://meet.google.com/amg-live-session',
-      instructions: existingData?.liveSessionSettings?.instructions || 'कृपया क्लासच्या १० मिनिटे आधी लॅपटॉप किंवा मोबाईलवर Google Meet लिंक ओपन करा. हेडफोन वापरल्यास आवाज अधिक स्पष्ट ऐकू येईल.',
-      sessionAccessMessage: existingData?.liveSessionSettings?.sessionAccessMessage || 'Live session लिंक फक्त नोंदणीकृत विद्यार्थ्यांना उपलब्ध आहे.',
+      googleMeetLink:
+        existingData?.liveSessionSettings?.googleMeetLink ||
+        "https://meet.google.com/amg-live-session",
+      instructions:
+        existingData?.liveSessionSettings?.instructions ||
+        "कृपया क्लासच्या १० मिनिटे आधी लॅपटॉप किंवा मोबाईलवर Google Meet लिंक ओपन करा. हेडफोन वापरल्यास आवाज अधिक स्पष्ट ऐकू येईल.",
+      sessionAccessMessage:
+        existingData?.liveSessionSettings?.sessionAccessMessage ||
+        "Live session लिंक फक्त नोंदणीकृत विद्यार्थ्यांना उपलब्ध आहे.",
     },
     siteSettings: {
-      courseName: existingData?.siteSettings?.courseName || 'AI Marathi Guru',
+      courseName: existingData?.siteSettings?.courseName || "AI Marathi Guru",
       courseFee: existingData?.siteSettings?.courseFee || 99,
       oldPrice: existingData?.siteSettings?.oldPrice || 999,
-      heroHeading: existingData?.siteSettings?.heroHeading || 'आता AI मराठीत शिका!',
-      heroSubtitle: existingData?.siteSettings?.heroSubtitle || 'AI शिका. व्यवसाय वाढवा. भविष्य घडवा.',
-      contactNumber: existingData?.siteSettings?.contactNumber || '9801555171',
-      contactEmail: existingData?.siteSettings?.contactEmail || 'contact@swaraudyog.com',
-      ctaText: existingData?.siteSettings?.ctaText || 'फक्त ₹99 मध्ये Join करा',
-      websiteUrl: existingData?.siteSettings?.websiteUrl || 'https://aimarathi.swaraudyog.com',
-      instagramLink: existingData?.siteSettings?.instagramLink || 'https://instagram.com/aimarathiguru',
-      youtubeLink: existingData?.siteSettings?.youtubeLink || 'https://youtube.com/aimarathiguru',
-      instructorName: existingData?.siteSettings?.instructorName || 'श्री. पंकज वाघमारे',
-      instructorNameEn: existingData?.siteSettings?.instructorNameEn || 'Mr. Pankaj Waghmare',
-      instructorTitle: existingData?.siteSettings?.instructorTitle || 'Founder & CEO, AI Marathi Guru',
-      instructorBio: existingData?.siteSettings?.instructorBio || '८,०००+ मराठी विद्यार्थी, व्यावसायिक, शिक्षक व उद्योजकांना AI चे सोप्या भाषेत लाईव्ह ऑनलाईन प्रशिक्षण.',
-      instructorPhoto: existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
-      instructor_photo_url: existingData?.siteSettings?.instructor_photo_url || existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
-      instructorPhotoUrl: existingData?.siteSettings?.instructorPhotoUrl || existingData?.siteSettings?.instructorPhoto || '/pankaj-photo.png',
+      heroHeading:
+        existingData?.siteSettings?.heroHeading || "आता AI मराठीत शिका!",
+      heroSubtitle:
+        existingData?.siteSettings?.heroSubtitle ||
+        "AI शिका. व्यवसाय वाढवा. भविष्य घडवा.",
+      contactNumber: existingData?.siteSettings?.contactNumber || "9801555171",
+      contactEmail:
+        existingData?.siteSettings?.contactEmail || "contact@swaraudyog.com",
+      ctaText: existingData?.siteSettings?.ctaText || "फक्त ₹99 मध्ये Join करा",
+      websiteUrl:
+        existingData?.siteSettings?.websiteUrl ||
+        "https://aimarathi.swaraudyog.com",
+      instagramLink:
+        existingData?.siteSettings?.instagramLink ||
+        "https://instagram.com/aimarathiguru",
+      youtubeLink:
+        existingData?.siteSettings?.youtubeLink ||
+        "https://youtube.com/aimarathiguru",
+      instructorName:
+        existingData?.siteSettings?.instructorName || "श्री. पंकज वाघमारे",
+      instructorNameEn:
+        existingData?.siteSettings?.instructorNameEn || "Mr. Pankaj Waghmare",
+      instructorTitle:
+        existingData?.siteSettings?.instructorTitle ||
+        "Founder & CEO, AI Marathi Guru",
+      instructorBio:
+        existingData?.siteSettings?.instructorBio ||
+        "८,०००+ मराठी विद्यार्थी, व्यावसायिक, शिक्षक व उद्योजकांना AI चे सोप्या भाषेत लाईव्ह ऑनलाईन प्रशिक्षण.",
+      instructorPhoto:
+        existingData?.siteSettings?.instructorPhoto || "/pankaj-photo.png",
+      instructor_photo_url:
+        existingData?.siteSettings?.instructor_photo_url ||
+        existingData?.siteSettings?.instructorPhoto ||
+        "/pankaj-photo.png",
+      instructorPhotoUrl:
+        existingData?.siteSettings?.instructorPhotoUrl ||
+        existingData?.siteSettings?.instructorPhoto ||
+        "/pankaj-photo.png",
       courseScreenshots: existingData?.siteSettings?.courseScreenshots || [
         {
-          id: 'scr_1',
-          title: 'ChatGPT Marathi Prompting',
-          imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop',
-          description: 'मराठीत योग्य प्रॉम्ट लिहून १ मिनिटात व्यावसायिक ई-मेल व अर्ज तयार करणे'
+          id: "scr_1",
+          title: "ChatGPT Marathi Prompting",
+          imageUrl:
+            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop",
+          description:
+            "मराठीत योग्य प्रॉम्ट लिहून १ मिनिटात व्यावसायिक ई-मेल व अर्ज तयार करणे",
         },
         {
-          id: 'scr_2',
-          title: 'Google Gemini & Jio AI Live Analysis',
-          imageUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop',
-          description: 'भारतीय भाषांमधील AI सहाय्यक व डॉक्युमेंट अ‍ॅनालिसिस'
+          id: "scr_2",
+          title: "Google Gemini & Jio AI Live Analysis",
+          imageUrl:
+            "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop",
+          description: "भारतीय भाषांमधील AI सहाय्यक व डॉक्युमेंट अ‍ॅनालिसिस",
         },
         {
-          id: 'scr_3',
-          title: 'AI Poster & Festival Graphics',
-          imageUrl: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=800&auto=format&fit=crop',
-          description: 'मोबाईलवरून १ मिनिटात सण-उत्सव व दुकानाचे HD जाहिरात पोस्टर'
+          id: "scr_3",
+          title: "AI Poster & Festival Graphics",
+          imageUrl:
+            "https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=800&auto=format&fit=crop",
+          description:
+            "मोबाईलवरून १ मिनिटात सण-उत्सव व दुकानाचे HD जाहिरात पोस्टर",
         },
         {
-          id: 'scr_4',
-          title: 'AI Video & Avatar Reels',
-          imageUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800&auto=format&fit=crop',
-          description: 'चेहरा न दाखवता व्हॉईसओव्हरसह रील व व्हिडिओ निर्मिती'
-        }
+          id: "scr_4",
+          title: "AI Video & Avatar Reels",
+          imageUrl:
+            "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800&auto=format&fit=crop",
+          description: "चेहरा न दाखवता व्हॉईसओव्हरसह रील व व्हिडिओ निर्मिती",
+        },
       ],
       modules: DEFAULT_MODULES,
       faqs: DEFAULT_FAQS,
     },
     auditLogs: existingData?.auditLogs || [
       {
-        id: 'log_1',
+        id: "log_1",
         timestamp: new Date().toISOString(),
-        adminUsername: 'system',
-        action: 'SYSTEM_BOOT',
-        details: 'Admin management system initial boot and data ready.',
+        adminUsername: "system",
+        action: "SYSTEM_BOOT",
+        details: "Admin management system initial boot and data ready.",
       },
     ],
   };
@@ -546,7 +674,7 @@ function saveDB(data: DBStructure) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
   } catch (err) {
-    console.error('Error saving DB to filesystem:', err);
+    console.error("Error saving DB to filesystem:", err);
   }
 }
 
@@ -554,11 +682,16 @@ function saveDB(data: DBStructure) {
 db = loadDB();
 
 // Log Audit Trail
-function addAuditLog(adminUsername: string, action: string, details: string, ip?: string) {
+function addAuditLog(
+  adminUsername: string,
+  action: string,
+  details: string,
+  ip?: string,
+) {
   db.auditLogs.unshift({
     id: `log_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     timestamp: new Date().toISOString(),
-    adminUsername: adminUsername || 'admin',
+    adminUsername: adminUsername || "admin",
     action,
     details,
     ip,
@@ -571,23 +704,32 @@ function addAuditLog(adminUsername: string, action: string, details: string, ip?
 }
 
 // Format template with dynamic variables
-function formatMessageTemplate(template: string, student: any, extra?: Record<string, string>): string {
-  if (!template) return '';
+function formatMessageTemplate(
+  template: string,
+  student: any,
+  extra?: Record<string, string>,
+): string {
+  if (!template) return "";
   let msg = template;
 
   const communityLink =
     db.whatsappSettings?.communityLink ||
     db.communicationSettings?.communityLink ||
-    'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO';
-  const studentName = student?.fullName || student?.name || 'विद्यार्थी';
-  const regId = student?.id || '';
-  const courseDate = student?.courseDateDisplay || '';
-  const slotTime = student?.slotTimeDisplay || '';
-  const paymentStatus = student?.paymentStatus || 'PAID';
-  const courseFee = String(student?.amountPaid || db.paymentSettings?.courseFee || 99);
+    "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO";
+  const studentName = student?.fullName || student?.name || "विद्यार्थी";
+  const regId = student?.id || "";
+  const courseDate = student?.courseDateDisplay || "";
+  const slotTime = student?.slotTimeDisplay || "";
+  const paymentStatus = student?.paymentStatus || "PAID";
+  const courseFee = String(
+    student?.amountPaid || db.paymentSettings?.courseFee || 99,
+  );
   const meetLink =
-    student?.meetLink || db.liveSessionSettings?.googleMeetLink || 'https://meet.google.com/amg-live-session';
-  const paymentLink = db.paymentSettings?.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0';
+    student?.meetLink ||
+    db.liveSessionSettings?.googleMeetLink ||
+    "https://meet.google.com/amg-live-session";
+  const paymentLink =
+    db.paymentSettings?.razorpayPaymentLink || "https://rzp.io/rzp/gAmUJOS0";
 
   // 1. Student Name replacements
   msg = msg.replace(/{Student Name}/gi, studentName);
@@ -633,7 +775,7 @@ function formatMessageTemplate(template: string, student: any, extra?: Record<st
 
   if (extra) {
     Object.keys(extra).forEach((k) => {
-      msg = msg.replace(new RegExp(`{${k}}`, 'gi'), extra[k]);
+      msg = msg.replace(new RegExp(`{${k}}`, "gi"), extra[k]);
     });
   }
   return msg;
@@ -645,10 +787,16 @@ function getComputedCourseDates() {
     .filter((cd) => cd.enabled)
     .map((cd) => {
       const slot1Paid = db.students.filter(
-        (s) => s.courseDateId === cd.id && s.selectedSlot === 'slot1' && s.paymentStatus === 'PAID'
+        (s) =>
+          s.courseDateId === cd.id &&
+          s.selectedSlot === "slot1" &&
+          s.paymentStatus === "PAID",
       ).length;
       const slot2Paid = db.students.filter(
-        (s) => s.courseDateId === cd.id && s.selectedSlot === 'slot2' && s.paymentStatus === 'PAID'
+        (s) =>
+          s.courseDateId === cd.id &&
+          s.selectedSlot === "slot2" &&
+          s.paymentStatus === "PAID",
       ).length;
 
       const slot1Booked = Math.max(cd.slot1?.booked || 0, slot1Paid);
@@ -657,8 +805,12 @@ function getComputedCourseDates() {
       const slot1Cap = cd.slot1?.capacity ?? 50;
       const slot2Cap = cd.slot2?.capacity ?? 50;
 
-      const slot1Available = cd.slot1?.enabled ? Math.max(0, slot1Cap - slot1Booked) : 0;
-      const slot2Available = cd.slot2?.enabled ? Math.max(0, slot2Cap - slot2Booked) : 0;
+      const slot1Available = cd.slot1?.enabled
+        ? Math.max(0, slot1Cap - slot1Booked)
+        : 0;
+      const slot2Available = cd.slot2?.enabled
+        ? Math.max(0, slot2Cap - slot2Booked)
+        : 0;
 
       return {
         id: cd.id,
@@ -682,26 +834,45 @@ function getComputedCourseDates() {
 }
 
 // Express Auth Middleware
-function authenticateAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+function authenticateAdmin(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.replace(/^Bearer\s+/i, '');
+  const token = authHeader?.replace(/^Bearer\s+/i, "");
   if (!token) {
-    return res.status(401).json({ error: 'अनधिकृत! Admin लॉगिन आवश्यक आहे (Unauthorized: Admin login required).' });
+    return res
+      .status(401)
+      .json({
+        error:
+          "अनधिकृत! Admin लॉगिन आवश्यक आहे (Unauthorized: Admin login required).",
+      });
   }
 
   const verified = verifyAdminToken(token);
   if (!verified.valid || !verified.username) {
-    return res.status(401).json({ error: 'लॉगिन सेशन संपले आहे. कृपया पुन्हा लॉगिन करा (Session expired).' });
+    return res
+      .status(401)
+      .json({
+        error:
+          "लॉगिन सेशन संपले आहे. कृपया पुन्हा लॉगिन करा (Session expired).",
+      });
   }
 
   const { username: envUser } = getAdminCredentials();
-  const dbAdmin = db.admins.find((a) => a.username.toLowerCase() === verified.username?.toLowerCase() && a.active !== false) || db.admins[0];
+  const dbAdmin =
+    db.admins.find(
+      (a) =>
+        a.username.toLowerCase() === verified.username?.toLowerCase() &&
+        a.active !== false,
+    ) || db.admins[0];
 
   (req as any).admin = {
-    id: dbAdmin?.id || 'admin_1',
+    id: dbAdmin?.id || "admin_1",
     username: verified.username || envUser,
-    name: dbAdmin?.name || 'Super Administrator',
-    role: dbAdmin?.role || 'SUPER_ADMIN',
+    name: dbAdmin?.name || "Super Administrator",
+    role: dbAdmin?.role || "SUPER_ADMIN",
     mustChangePassword: false,
   };
 
@@ -713,14 +884,14 @@ function authenticateAdmin(req: express.Request, res: express.Response, next: ex
 // -----------------------------
 
 // 0. Health Check for Hosting & Monitoring
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 // 1. Detailed Health check
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({
-    status: 'ok',
+    status: "ok",
     time: new Date().toISOString(),
     studentsCount: db.students.length,
     courseDatesCount: db.courseDates.length,
@@ -729,9 +900,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // 2. Public Site Content & Settings (Combined)
-app.get('/api/content', (req, res) => {
+app.get("/api/content", (req, res) => {
   const activeCourseDates = getComputedCourseDates();
-  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
+  const currentPhoto =
+    db.siteSettings.instructor_photo_url ||
+    db.siteSettings.instructorPhoto ||
+    db.siteSettings.instructorPhotoUrl ||
+    "";
 
   res.json({
     siteSettings: {
@@ -752,7 +927,9 @@ app.get('/api/content', (req, res) => {
     whatsappSettings: db.whatsappSettings,
     communication: {
       businessNumber: db.communicationSettings.businessNumber,
-      communityLink: db.whatsappSettings.communityLink || db.communicationSettings.communityLink,
+      communityLink:
+        db.whatsappSettings.communityLink ||
+        db.communicationSettings.communityLink,
       supportLink: db.communicationSettings.supportLink,
       customSuccessMessage: db.whatsappSettings.customSuccessMessage,
       buttonText: db.whatsappSettings.buttonText,
@@ -762,7 +939,7 @@ app.get('/api/content', (req, res) => {
 });
 
 // 3. Public Course Dates
-app.get('/api/course-dates', (req, res) => {
+app.get("/api/course-dates", (req, res) => {
   res.json({
     success: true,
     courseDates: getComputedCourseDates(),
@@ -773,8 +950,8 @@ app.get('/api/course-dates', (req, res) => {
 function generateNextRegistrationId(database: DBStructure): string {
   let maxSeq = 0;
   for (const s of database.students) {
-    if (s.id && s.id.startsWith('AMG-2026-')) {
-      const parts = s.id.split('-');
+    if (s.id && s.id.startsWith("AMG-2026-")) {
+      const parts = s.id.split("-");
       const num = parseInt(parts[2], 10);
       if (!isNaN(num) && num > maxSeq) {
         maxSeq = num;
@@ -782,23 +959,24 @@ function generateNextRegistrationId(database: DBStructure): string {
     }
   }
   const nextNum = maxSeq + 1;
-  return `AMG-2026-${String(nextNum).padStart(5, '0')}`;
+  return `AMG-2026-${String(nextNum).padStart(5, "0")}`;
 }
 
 // 4. Public Payment Settings info
-app.get('/api/payment-settings', (req, res) => {
+app.get("/api/payment-settings", (req, res) => {
   res.json({
     success: true,
     courseFee: db.paymentSettings.courseFee,
     originalFee: db.paymentSettings.originalFee,
     razorpayPaymentLink: db.paymentSettings.razorpayPaymentLink,
     paymentMode: db.paymentSettings.paymentMode,
-    razorpayKeyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
+    razorpayKeyId:
+      ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
   });
 });
 
 // 5. Student Registration Flow (STEP 1: Create PENDING Session Only)
-app.post('/api/register', async (req, res) => {
+app.post("/api/register", async (req, res) => {
   try {
     const {
       fullName,
@@ -811,32 +989,50 @@ app.post('/api/register', async (req, res) => {
       selectedSlot,
     } = req.body;
 
-    if (!fullName || !mobileNumber || !email || !courseDateId || !selectedSlot) {
-      return res.status(400).json({ error: 'कृपया सर्व आवश्यक माहिती भरा.' });
+    if (
+      !fullName ||
+      !mobileNumber ||
+      !email ||
+      !courseDateId ||
+      !selectedSlot
+    ) {
+      return res.status(400).json({ error: "कृपया सर्व आवश्यक माहिती भरा." });
     }
 
     // Validate 10 digit mobile
-    const cleanMobile = String(mobileNumber).trim().replace(/\D/g, '');
+    const cleanMobile = String(mobileNumber).trim().replace(/\D/g, "");
     if (cleanMobile.length < 10) {
-      return res.status(400).json({ error: 'कृपया योग्य १० अंकी मोबाईल नंबर टाका.' });
+      return res
+        .status(400)
+        .json({ error: "कृपया योग्य १० अंकी मोबाईल नंबर टाका." });
     }
 
     // Find course date record
-    const targetCourseDate = db.courseDates.find((cd) => cd.id === courseDateId && cd.enabled);
+    const targetCourseDate = db.courseDates.find(
+      (cd) => cd.id === courseDateId && cd.enabled,
+    );
     if (!targetCourseDate) {
-      return res.status(400).json({ error: 'निवडलेली कोर्स तारीख सध्या उपलब्ध नाही.' });
+      return res
+        .status(400)
+        .json({ error: "निवडलेली कोर्स तारीख सध्या उपलब्ध नाही." });
     }
 
-    const slotKey: 'slot1' | 'slot2' = selectedSlot === 'slot1' ? 'slot1' : 'slot2';
+    const slotKey: "slot1" | "slot2" =
+      selectedSlot === "slot1" ? "slot1" : "slot2";
     const targetSlot = targetCourseDate[slotKey];
 
     if (!targetSlot || !targetSlot.enabled) {
-      return res.status(400).json({ error: 'निवडलेला स्लॉट सध्या उपलब्ध नाही.' });
+      return res
+        .status(400)
+        .json({ error: "निवडलेला स्लॉट सध्या उपलब्ध नाही." });
     }
 
     // Capacity lock check (Only count VERIFIED PAID students)
     const paidCount = db.students.filter(
-      (s) => s.courseDateId === courseDateId && s.selectedSlot === slotKey && s.paymentStatus === 'PAID'
+      (s) =>
+        s.courseDateId === courseDateId &&
+        s.selectedSlot === slotKey &&
+        s.paymentStatus === "PAID",
     ).length;
 
     if (paidCount >= targetSlot.capacity) {
@@ -851,7 +1047,7 @@ app.post('/api/register', async (req, res) => {
       (s) =>
         s.mobileNumber.trim() === cleanMobile &&
         s.courseDateId === courseDateId &&
-        s.paymentStatus === 'PAID'
+        s.paymentStatus === "PAID",
     );
 
     if (existingPaid) {
@@ -860,10 +1056,10 @@ app.post('/api/register', async (req, res) => {
       return res.json({
         success: true,
         alreadyRegistered: true,
-        registrationStatus: 'CONFIRMED',
-        paymentStatus: 'PAID',
+        registrationStatus: "CONFIRMED",
+        paymentStatus: "PAID",
         registration: existingPaid,
-        message: 'या मोबाईल नंबरवर या तारखेसाठी आधीच नोंदणी झालेली आहे.',
+        message: "या मोबाईल नंबरवर या तारखेसाठी आधीच नोंदणी झालेली आहे.",
         whatsappMessage: formatted,
         communityLink: db.whatsappSettings.communityLink,
       });
@@ -878,21 +1074,25 @@ app.post('/api/register', async (req, res) => {
     const feeToCharge = db.paymentSettings.courseFee || 99;
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
 
-    let razorpayOrderId = '';
+    let razorpayOrderId = "";
 
     // If Razorpay API credentials exist, optionally create an order on Razorpay
     if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
       try {
-        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
-        const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
-          method: 'POST',
+        const authHeader =
+          "Basic " +
+          Buffer.from(
+            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+          ).toString("base64");
+        const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+          method: "POST",
           headers: {
             Authorization: authHeader,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             amount: feeToCharge * 100, // paise
-            currency: 'INR',
+            currency: "INR",
             receipt: `rcpt_${tempId.substring(0, 30)}`,
             notes: {
               fullName: String(fullName).trim(),
@@ -904,90 +1104,109 @@ app.post('/api/register', async (req, res) => {
         });
         if (orderRes.ok) {
           const orderData: any = await orderRes.json();
-          razorpayOrderId = orderData.id || '';
+          razorpayOrderId = orderData.id || "";
         }
       } catch (orderErr) {
-        console.warn('Razorpay order creation fallback:', orderErr);
+        console.warn("Razorpay order creation fallback:", orderErr);
       }
     }
 
-    const pendingStudent: DBStructure['students'][0] = {
+    const pendingStudent: DBStructure["students"][0] = {
       id: tempId,
       tempId,
-      fullName: String(fullName || '').trim(),
+      fullName: String(fullName || "").trim(),
       mobileNumber: cleanMobile,
-      whatsappNumber: String(whatsappNumber || cleanMobile).trim().replace(/\D/g, ''),
-      email: String(email || '').trim().toLowerCase(),
-      district: String(district || 'महाराष्ट्र').trim(),
-      occupation: String(occupation || 'Other').trim(),
+      whatsappNumber: String(whatsappNumber || cleanMobile)
+        .trim()
+        .replace(/\D/g, ""),
+      email: String(email || "")
+        .trim()
+        .toLowerCase(),
+      district: String(district || "महाराष्ट्र").trim(),
+      occupation: String(occupation || "Other").trim(),
       courseDateId: String(courseDateId),
       courseDateDisplay: targetCourseDate.displayDate,
       selectedSlot: slotKey,
       slotTimeDisplay,
       agreedToFee: true,
       registrationDate: new Date().toISOString(),
-      registrationStatus: 'PENDING',
-      paymentStatus: 'PENDING',
+      registrationStatus: "PENDING",
+      paymentStatus: "PENDING",
       paymentVerified: false,
-      paymentId: '',
+      paymentId: "",
       orderId: razorpayOrderId,
       amountPaid: feeToCharge,
       whatsappJoined: false,
-      meetLink: targetSlot.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-live-session',
+      meetLink:
+        targetSlot.meetLink ||
+        db.liveSessionSettings.googleMeetLink ||
+        "https://meet.google.com/amg-live-session",
     };
 
     // Save pending student
     db.students.unshift(pendingStudent);
     saveDB(db);
 
-    console.log(`[REGISTRATION INITIATED - PENDING] TempID: ${tempId} | Mobile: ${cleanMobile} | Fee: ₹${feeToCharge}`);
+    console.log(
+      `[REGISTRATION INITIATED - PENDING] TempID: ${tempId} | Mobile: ${cleanMobile} | Fee: ₹${feeToCharge}`,
+    );
 
     return res.json({
       success: true,
       tempId,
-      registrationStatus: 'PENDING',
-      paymentStatus: 'PENDING',
+      registrationStatus: "PENDING",
+      paymentStatus: "PENDING",
       amount: feeToCharge,
       courseFee: feeToCharge,
-      razorpayKeyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
+      razorpayKeyId:
+        ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
       razorpayOrderId,
-      paymentLink: db.paymentSettings.razorpayPaymentLink || 'https://rzp.io/rzp/gAmUJOS0',
+      paymentLink:
+        db.paymentSettings.razorpayPaymentLink || "https://rzp.io/rzp/gAmUJOS0",
       pendingRegistration: pendingStudent,
     });
   } catch (err: any) {
-    console.error('Registration Error:', err);
-    return res.status(500).json({ error: 'नोंदणी प्रक्रियेत समस्या आली. कृपया पुन्हा प्रयत्न करा.' });
+    console.error("Registration Error:", err);
+    return res
+      .status(500)
+      .json({
+        error: "नोंदणी प्रक्रियेत समस्या आली. कृपया पुन्हा प्रयत्न करा.",
+      });
   }
 });
 
 // 5.1 Create Order specifically for Razorpay Checkout
-app.post('/api/payment/create-order', async (req, res) => {
+app.post("/api/payment/create-order", async (req, res) => {
   try {
     const { tempId, amount } = req.body;
     const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 99;
 
-    let orderId = '';
+    let orderId = "";
     if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
       try {
-        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
-        const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
-          method: 'POST',
+        const authHeader =
+          "Basic " +
+          Buffer.from(
+            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+          ).toString("base64");
+        const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+          method: "POST",
           headers: {
             Authorization: authHeader,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             amount: feeToCharge * 100,
-            currency: 'INR',
+            currency: "INR",
             receipt: `rcpt_${tempId || Date.now()}`,
           }),
         });
         if (orderRes.ok) {
           const orderData: any = await orderRes.json();
-          orderId = orderData.id || '';
+          orderId = orderData.id || "";
         }
       } catch (e) {
-        console.warn('Create order direct error:', e);
+        console.warn("Create order direct error:", e);
       }
     }
 
@@ -997,7 +1216,9 @@ app.post('/api/payment/create-order', async (req, res) => {
     }
 
     if (tempId) {
-      const student = db.students.find((s) => s.id === tempId || s.tempId === tempId);
+      const student = db.students.find(
+        (s) => s.id === tempId || s.tempId === tempId,
+      );
       if (student) {
         student.orderId = orderId;
         saveDB(db);
@@ -1008,16 +1229,19 @@ app.post('/api/payment/create-order', async (req, res) => {
       success: true,
       orderId,
       amount: feeToCharge * 100,
-      currency: 'INR',
-      keyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || '',
+      currency: "INR",
+      keyId: ENV_RAZORPAY_KEY_ID || db.paymentSettings.razorpayKeyId || "",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Order creation failed' });
+    return res.status(500).json({ error: "Order creation failed" });
   }
 });
 
 // 6. Strict Server-Side Payment Verification (STEP 3 & STEP 9)
-const handlePaymentVerification = async (req: express.Request, res: express.Response) => {
+const handlePaymentVerification = async (
+  req: express.Request,
+  res: express.Response,
+) => {
   try {
     const {
       tempId,
@@ -1030,38 +1254,47 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
       paymentId,
     } = req.body;
 
-    const lookupKey = tempId || studentId || registrationId || '';
-    const cleanMobile = mobileNumber ? String(mobileNumber).trim().replace(/\D/g, '') : '';
-    const payId = String(razorpay_payment_id || paymentId || '').trim();
+    const lookupKey = tempId || studentId || registrationId || "";
+    const cleanMobile = mobileNumber
+      ? String(mobileNumber).trim().replace(/\D/g, "")
+      : "";
+    const payId = String(razorpay_payment_id || paymentId || "").trim();
 
     // 1. Validate payment identifier
-    if (!payId || payId === 'PENDING_PAYMENT' || payId.length < 5) {
+    if (!payId || payId === "PENDING_PAYMENT" || payId.length < 5) {
       return res.status(400).json({
-        error: 'वैध Payment ID किंवा Transaction ID आवश्यक आहे. पेमेंट पूर्ण केल्याशिवाय नोंदणी कन्फर्म होणार नाही.',
+        error:
+          "वैध Payment ID किंवा Transaction ID आवश्यक आहे. पेमेंट पूर्ण केल्याशिवाय नोंदणी कन्फर्म होणार नाही.",
       });
     }
 
     // 2. Find matching student record
-    let student: DBStructure['students'][0] | undefined = undefined;
+    let student: DBStructure["students"][0] | undefined = undefined;
 
     if (lookupKey) {
-      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+      student = db.students.find(
+        (s) => s.id === lookupKey || s.tempId === lookupKey,
+      );
     }
     if (!student && cleanMobile) {
       // Find latest pending or unconfirmed student for this mobile
-      student = db.students.find(
-        (s) => s.mobileNumber === cleanMobile && s.paymentStatus !== 'PAID'
-      ) || db.students.find((s) => s.mobileNumber === cleanMobile);
+      student =
+        db.students.find(
+          (s) => s.mobileNumber === cleanMobile && s.paymentStatus !== "PAID",
+        ) || db.students.find((s) => s.mobileNumber === cleanMobile);
     }
 
     if (!student) {
       return res.status(404).json({
-        error: 'नोंदणी सेशन सापडले नाही. कृपया पुन्हा फॉर्म भरा.',
+        error: "नोंदणी सेशन सापडले नाही. कृपया पुन्हा फॉर्म भरा.",
       });
     }
 
     // STEP 8: Duplicate Protection - If already verified and PAID, return confirmed record idempotently
-    if (student.paymentStatus === 'PAID' && student.registrationStatus === 'CONFIRMED') {
+    if (
+      student.paymentStatus === "PAID" &&
+      student.registrationStatus === "CONFIRMED"
+    ) {
       const template = db.communicationSettings.templates.paymentSuccess;
       const formattedMessage = formatMessageTemplate(template, student);
       return res.json({
@@ -1069,20 +1302,26 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
         verified: true,
         alreadyConfirmed: true,
         registration: student,
-        registrationStatus: 'CONFIRMED',
-        paymentStatus: 'PAID',
+        registrationStatus: "CONFIRMED",
+        paymentStatus: "PAID",
         whatsappMessage: formattedMessage,
-        communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+        communityLink:
+          db.whatsappSettings.communityLink ||
+          "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
       });
     }
 
     // STEP 8: Prevent duplicate payment ID reuse across different students
     const duplicateStudent = db.students.find(
-      (s) => s.id !== student!.id && s.paymentId === payId && s.paymentStatus === 'PAID'
+      (s) =>
+        s.id !== student!.id &&
+        s.paymentId === payId &&
+        s.paymentStatus === "PAID",
     );
     if (duplicateStudent) {
       return res.status(400).json({
-        error: 'हा Payment ID आधीच दुसऱ्या विद्यार्थ्याच्या नोंदणीसाठी वापरला गेला आहे (Duplicate Payment ID detected).',
+        error:
+          "हा Payment ID आधीच दुसऱ्या विद्यार्थ्याच्या नोंदणीसाठी वापरला गेला आहे (Duplicate Payment ID detected).",
       });
     }
 
@@ -1090,39 +1329,56 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
     // A. Signature verification if signature & secret exist
     if (razorpay_signature && razorpay_order_id && ENV_RAZORPAY_KEY_SECRET) {
       const expectedSignature = crypto
-        .createHmac('sha256', ENV_RAZORPAY_KEY_SECRET)
+        .createHmac("sha256", ENV_RAZORPAY_KEY_SECRET)
         .update(`${razorpay_order_id}|${payId}`)
-        .digest('hex');
+        .digest("hex");
 
       if (expectedSignature !== razorpay_signature) {
-        console.warn(`[SECURITY] Razorpay Signature Mismatch! Expected: ${expectedSignature}, Received: ${razorpay_signature}`);
-        student.paymentStatus = 'FAILED';
-        student.failureReason = 'Payment Signature Verification Failed';
+        console.warn(
+          `[SECURITY] Razorpay Signature Mismatch! Expected: ${expectedSignature}, Received: ${razorpay_signature}`,
+        );
+        student.paymentStatus = "FAILED";
+        student.failureReason = "Payment Signature Verification Failed";
         saveDB(db);
         return res.status(400).json({
-          error: 'Razorpay Payment Signature Verification Failed. पेमेंट अनधिकृत आहे.',
-          paymentStatus: 'FAILED',
+          error:
+            "Razorpay Payment Signature Verification Failed. पेमेंट अनधिकृत आहे.",
+          paymentStatus: "FAILED",
         });
       }
     }
 
     // B. Razorpay API Live Verification (if API credentials configured and pay_... id)
-    if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET && payId.startsWith('pay_')) {
+    if (
+      ENV_RAZORPAY_KEY_ID &&
+      ENV_RAZORPAY_KEY_SECRET &&
+      payId.startsWith("pay_")
+    ) {
       try {
-        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
-        const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${payId}`, {
-          headers: { Authorization: authHeader },
-        });
+        const authHeader =
+          "Basic " +
+          Buffer.from(
+            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+          ).toString("base64");
+        const rzpRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${payId}`,
+          {
+            headers: { Authorization: authHeader },
+          },
+        );
 
         if (rzpRes.ok) {
           const rzpData: any = await rzpRes.json();
-          if (rzpData.status !== 'captured' && rzpData.status !== 'authorized') {
-            student.paymentStatus = 'FAILED';
+          if (
+            rzpData.status !== "captured" &&
+            rzpData.status !== "authorized"
+          ) {
+            student.paymentStatus = "FAILED";
             student.failureReason = `Razorpay returned status: ${rzpData.status}`;
             saveDB(db);
             return res.status(400).json({
               error: `पेमेंट स्थिती "${rzpData.status}" आहे, यशस्वी नाही. कृपया पुन्हा प्रयत्न करा.`,
-              paymentStatus: 'FAILED',
+              paymentStatus: "FAILED",
             });
           }
 
@@ -1130,12 +1386,15 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
           if (rzpData.amount && rzpData.amount < expectedPaise) {
             return res.status(400).json({
               error: `पेमेंट रक्कम (₹${rzpData.amount / 100}) अपेक्षित कोर्स फी (₹${expectedPaise / 100}) पेक्षा कमी आहे.`,
-              paymentStatus: 'FAILED',
+              paymentStatus: "FAILED",
             });
           }
         }
       } catch (apiErr) {
-        console.warn('Razorpay API verification network warning (continuing with signature/format check):', apiErr);
+        console.warn(
+          "Razorpay API verification network warning (continuing with signature/format check):",
+          apiErr,
+        );
       }
     }
 
@@ -1149,8 +1408,8 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
     // =========================================================================
     const confirmedRegId = generateNextRegistrationId(db);
     student.id = confirmedRegId;
-    student.registrationStatus = 'CONFIRMED';
-    student.paymentStatus = 'PAID';
+    student.registrationStatus = "CONFIRMED";
+    student.paymentStatus = "PAID";
     student.paymentVerified = true;
     student.paymentId = payId;
     if (razorpay_order_id) student.orderId = razorpay_order_id;
@@ -1158,17 +1417,26 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
     student.failureReason = undefined;
 
     // Increment seat in slot
-    const courseDate = db.courseDates.find((cd) => cd.id === student.courseDateId);
+    const courseDate = db.courseDates.find(
+      (cd) => cd.id === student.courseDateId,
+    );
     if (courseDate) {
-      const slotKey: 'slot1' | 'slot2' = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+      const slotKey: "slot1" | "slot2" =
+        student.selectedSlot === "slot2" ? "slot2" : "slot1";
       if (courseDate[slotKey]) {
         courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
       }
     }
 
     saveDB(db);
-    addAuditLog('SYSTEM', 'PAYMENT_VERIFIED', `Verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
-    console.log(`[PAYMENT VERIFIED & CONFIRMED] ID: ${confirmedRegId} | Student: ${student.fullName} | PayID: ${payId}`);
+    addAuditLog(
+      "SYSTEM",
+      "PAYMENT_VERIFIED",
+      `Verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`,
+    );
+    console.log(
+      `[PAYMENT VERIFIED & CONFIRMED] ID: ${confirmedRegId} | Student: ${student.fullName} | PayID: ${payId}`,
+    );
 
     // Generate WhatsApp Confirmation Message (STEP 7)
     const template = db.communicationSettings.templates.paymentSuccess;
@@ -1178,92 +1446,127 @@ const handlePaymentVerification = async (req: express.Request, res: express.Resp
       success: true,
       verified: true,
       registration: student,
-      registrationStatus: 'CONFIRMED',
-      paymentStatus: 'PAID',
+      registrationStatus: "CONFIRMED",
+      paymentStatus: "PAID",
       whatsappMessage: formattedMessage,
-      communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+      communityLink:
+        db.whatsappSettings.communityLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
     });
   } catch (err: any) {
-    console.error('Payment Verification Error:', err);
-    return res.status(500).json({ error: 'पेमेंट पडताळणी प्रक्रियेत त्रुटी आली. कृपया पुन्हा प्रयत्न करा.' });
+    console.error("Payment Verification Error:", err);
+    return res
+      .status(500)
+      .json({
+        error:
+          "पेमेंट पडताळणी प्रक्रियेत त्रुटी आली. कृपया पुन्हा प्रयत्न करा.",
+      });
   }
 };
 
-app.post('/api/payment/verify', handlePaymentVerification);
-app.post('/api/confirm-payment', handlePaymentVerification);
+app.post("/api/payment/verify", handlePaymentVerification);
+app.post("/api/confirm-payment", handlePaymentVerification);
 
 // 6.1 Payment Failure Handler (STEP 4)
-app.post('/api/payment/fail', (req, res) => {
+app.post("/api/payment/fail", (req, res) => {
   try {
     const { tempId, studentId, mobileNumber, reason } = req.body;
-    const lookupKey = tempId || studentId || '';
+    const lookupKey = tempId || studentId || "";
 
-    let student: DBStructure['students'][0] | undefined;
+    let student: DBStructure["students"][0] | undefined;
     if (lookupKey) {
-      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+      student = db.students.find(
+        (s) => s.id === lookupKey || s.tempId === lookupKey,
+      );
     }
     if (!student && mobileNumber) {
-      student = db.students.find((s) => s.mobileNumber === mobileNumber && s.paymentStatus !== 'PAID');
+      student = db.students.find(
+        (s) => s.mobileNumber === mobileNumber && s.paymentStatus !== "PAID",
+      );
     }
 
     if (student) {
-      student.paymentStatus = 'FAILED';
-      student.registrationStatus = 'PENDING';
-      student.failureReason = reason || 'Payment failed or was declined by gateway.';
+      student.paymentStatus = "FAILED";
+      student.registrationStatus = "PENDING";
+      student.failureReason =
+        reason || "Payment failed or was declined by gateway.";
       saveDB(db);
-      addAuditLog('SYSTEM', 'PAYMENT_FAILED', `Payment failed for session ${student.id} (${student.fullName}): ${reason || 'Unknown error'}`);
+      addAuditLog(
+        "SYSTEM",
+        "PAYMENT_FAILED",
+        `Payment failed for session ${student.id} (${student.fullName}): ${reason || "Unknown error"}`,
+      );
     }
 
     return res.json({
       success: true,
-      paymentStatus: 'FAILED',
-      message: 'Payment marked as failed. User can retry.',
+      paymentStatus: "FAILED",
+      message: "Payment marked as failed. User can retry.",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed updating payment status' });
+    return res.status(500).json({ error: "Failed updating payment status" });
   }
 });
 
 // 6.2 Payment Cancelled Handler (STEP 5)
-app.post('/api/payment/cancel', (req, res) => {
+app.post("/api/payment/cancel", (req, res) => {
   try {
     const { tempId, studentId, mobileNumber } = req.body;
-    const lookupKey = tempId || studentId || '';
+    const lookupKey = tempId || studentId || "";
 
-    let student: DBStructure['students'][0] | undefined;
+    let student: DBStructure["students"][0] | undefined;
     if (lookupKey) {
-      student = db.students.find((s) => s.id === lookupKey || s.tempId === lookupKey);
+      student = db.students.find(
+        (s) => s.id === lookupKey || s.tempId === lookupKey,
+      );
     }
     if (!student && mobileNumber) {
-      student = db.students.find((s) => s.mobileNumber === mobileNumber && s.paymentStatus !== 'PAID');
+      student = db.students.find(
+        (s) => s.mobileNumber === mobileNumber && s.paymentStatus !== "PAID",
+      );
     }
 
-    if (student && student.paymentStatus !== 'PAID') {
-      student.paymentStatus = 'CANCELLED';
-      student.registrationStatus = 'PENDING';
-      student.failureReason = 'Payment window was closed or cancelled by user.';
+    if (student && student.paymentStatus !== "PAID") {
+      student.paymentStatus = "CANCELLED";
+      student.registrationStatus = "PENDING";
+      student.failureReason = "Payment window was closed or cancelled by user.";
       saveDB(db);
     }
 
     return res.json({
       success: true,
-      paymentStatus: 'CANCELLED',
-      message: 'Payment cancelled.',
+      paymentStatus: "CANCELLED",
+      message: "Payment cancelled.",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed updating payment cancellation' });
+    return res
+      .status(500)
+      .json({ error: "Failed updating payment cancellation" });
   }
 });
 
 // 6.2.1 Automatic Server-Side Payment Status Check & Polling Handler
-const handlePaymentStatusCheck = async (req: express.Request, res: express.Response) => {
+const handlePaymentStatusCheck = async (
+  req: express.Request,
+  res: express.Response,
+) => {
   try {
-    const tempId = String(req.query.tempId || req.body?.tempId || req.query.studentId || req.body?.studentId || '').trim();
-    const mobileNumber = String(req.query.mobileNumber || req.body?.mobileNumber || '').trim();
-    const orderId = String(req.query.orderId || req.body?.orderId || '').trim();
-    const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
+    const tempId = String(
+      req.query.tempId ||
+        req.body?.tempId ||
+        req.query.studentId ||
+        req.body?.studentId ||
+        "",
+    ).trim();
+    const mobileNumber = String(
+      req.query.mobileNumber || req.body?.mobileNumber || "",
+    ).trim();
+    const orderId = String(req.query.orderId || req.body?.orderId || "").trim();
+    const cleanMobile = mobileNumber
+      ? mobileNumber.replace(/\D/g, "").slice(-10)
+      : "";
 
-    let student: DBStructure['students'][0] | undefined;
+    let student: DBStructure["students"][0] | undefined;
     if (tempId) {
       student = db.students.find((s) => s.id === tempId || s.tempId === tempId);
     }
@@ -1272,61 +1575,84 @@ const handlePaymentStatusCheck = async (req: express.Request, res: express.Respo
     }
     if (!student && cleanMobile) {
       // Look for student with matching mobile number (prefer pending unconfirmed sessions first)
-      student = db.students.find(
-        (s) => (s.mobileNumber === cleanMobile || s.mobileNumber.endsWith(cleanMobile)) && s.paymentStatus !== 'PAID'
-      ) || db.students.find((s) => s.mobileNumber === cleanMobile || s.mobileNumber.endsWith(cleanMobile));
+      student =
+        db.students.find(
+          (s) =>
+            (s.mobileNumber === cleanMobile ||
+              s.mobileNumber.endsWith(cleanMobile)) &&
+            s.paymentStatus !== "PAID",
+        ) ||
+        db.students.find(
+          (s) =>
+            s.mobileNumber === cleanMobile ||
+            s.mobileNumber.endsWith(cleanMobile),
+        );
     }
 
     if (!student) {
       return res.status(404).json({
         success: false,
-        paymentStatus: 'NOT_FOUND',
-        error: 'नोंदणी सेशन सापडले नाही.',
+        paymentStatus: "NOT_FOUND",
+        error: "नोंदणी सेशन सापडले नाही.",
       });
     }
 
     // 1. If already PAID & CONFIRMED (via Webhook, API, or Checkout)
-    if (student.paymentStatus === 'PAID' && student.registrationStatus === 'CONFIRMED') {
+    if (
+      student.paymentStatus === "PAID" &&
+      student.registrationStatus === "CONFIRMED"
+    ) {
       const template = db.communicationSettings.templates.paymentSuccess;
       const formattedMessage = formatMessageTemplate(template, student);
       return res.json({
         success: true,
-        paymentStatus: 'PAID',
-        registrationStatus: 'CONFIRMED',
+        paymentStatus: "PAID",
+        registrationStatus: "CONFIRMED",
         verified: true,
         registration: student,
         whatsappMessage: formattedMessage,
-        communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+        communityLink:
+          db.whatsappSettings.communityLink ||
+          "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
       });
     }
 
     // 2. If student status is marked FAILED
-    if (student.paymentStatus === 'FAILED') {
+    if (student.paymentStatus === "FAILED") {
       return res.json({
         success: true,
-        paymentStatus: 'FAILED',
-        registrationStatus: 'PENDING',
-        reason: student.failureReason || 'पेमेंट अयशस्वी झाले. कृपया पुन्हा प्रयत्न करा.',
+        paymentStatus: "FAILED",
+        registrationStatus: "PENDING",
+        reason:
+          student.failureReason ||
+          "पेमेंट अयशस्वी झाले. कृपया पुन्हा प्रयत्न करा.",
       });
     }
 
     // 3. If student status is marked CANCELLED
-    if (student.paymentStatus === 'CANCELLED') {
+    if (student.paymentStatus === "CANCELLED") {
       return res.json({
         success: true,
-        paymentStatus: 'CANCELLED',
-        registrationStatus: 'PENDING',
-        reason: 'पेमेंट रद्द झाले आहे. कृपया पुन्हा प्रयत्न करा.',
+        paymentStatus: "CANCELLED",
+        registrationStatus: "PENDING",
+        reason: "पेमेंट रद्द झाले आहे. कृपया पुन्हा प्रयत्न करा.",
       });
     }
 
     // 4. Proactive Razorpay Live API status lookup (if Razorpay API keys configured)
     if (ENV_RAZORPAY_KEY_ID && ENV_RAZORPAY_KEY_SECRET) {
       try {
-        const authHeader = 'Basic ' + Buffer.from(`${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`).toString('base64');
-        const paymentsRes = await fetch('https://api.razorpay.com/v1/payments?count=15', {
-          headers: { Authorization: authHeader },
-        });
+        const authHeader =
+          "Basic " +
+          Buffer.from(
+            `${ENV_RAZORPAY_KEY_ID}:${ENV_RAZORPAY_KEY_SECRET}`,
+          ).toString("base64");
+        const paymentsRes = await fetch(
+          "https://api.razorpay.com/v1/payments?count=15",
+          {
+            headers: { Authorization: authHeader },
+          },
+        );
 
         if (paymentsRes.ok) {
           const pData: any = await paymentsRes.json();
@@ -1334,198 +1660,277 @@ const handlePaymentStatusCheck = async (req: express.Request, res: express.Respo
 
           // Look for any captured/authorized payment for this contact or order
           const matchedPayment = items.find((p: any) => {
-            if (p.status !== 'captured' && p.status !== 'authorized') return false;
-            const pContact = p.contact ? String(p.contact).replace(/\D/g, '').slice(-10) : '';
-            const pEmail = p.email ? String(p.email).toLowerCase().trim() : '';
-            const pOrder = p.order_id || '';
-            const pNoteTempId = p.notes?.tempId || p.notes?.studentId || '';
+            if (p.status !== "captured" && p.status !== "authorized")
+              return false;
+            const pContact = p.contact
+              ? String(p.contact).replace(/\D/g, "").slice(-10)
+              : "";
+            const pEmail = p.email ? String(p.email).toLowerCase().trim() : "";
+            const pOrder = p.order_id || "";
+            const pNoteTempId = p.notes?.tempId || p.notes?.studentId || "";
 
-            const matchesTempId = tempId && pNoteTempId && (pNoteTempId === tempId || pNoteTempId === student?.tempId);
-            const matchesMobile = cleanMobile && pContact && (pContact === cleanMobile || pContact.endsWith(cleanMobile));
-            const matchesEmail = student?.email && pEmail && pEmail === student.email.toLowerCase().trim();
-            const matchesOrder = student?.orderId && pOrder && pOrder === student.orderId;
+            const matchesTempId =
+              tempId &&
+              pNoteTempId &&
+              (pNoteTempId === tempId || pNoteTempId === student?.tempId);
+            const matchesMobile =
+              cleanMobile &&
+              pContact &&
+              (pContact === cleanMobile || pContact.endsWith(cleanMobile));
+            const matchesEmail =
+              student?.email &&
+              pEmail &&
+              pEmail === student.email.toLowerCase().trim();
+            const matchesOrder =
+              student?.orderId && pOrder && pOrder === student.orderId;
 
-            return matchesTempId || matchesMobile || matchesEmail || matchesOrder;
+            return (
+              matchesTempId || matchesMobile || matchesEmail || matchesOrder
+            );
           });
 
           if (matchedPayment) {
             const payId = matchedPayment.id;
             // Check duplicate
             const duplicate = db.students.find(
-              (s) => s.id !== student!.id && s.paymentId === payId && s.paymentStatus === 'PAID'
+              (s) =>
+                s.id !== student!.id &&
+                s.paymentId === payId &&
+                s.paymentStatus === "PAID",
             );
             if (!duplicate) {
               const confirmedRegId = generateNextRegistrationId(db);
               student.id = confirmedRegId;
-              student.registrationStatus = 'CONFIRMED';
-              student.paymentStatus = 'PAID';
+              student.registrationStatus = "CONFIRMED";
+              student.paymentStatus = "PAID";
               student.paymentVerified = true;
               student.paymentId = payId;
-              if (matchedPayment.order_id) student.orderId = matchedPayment.order_id;
+              if (matchedPayment.order_id)
+                student.orderId = matchedPayment.order_id;
               student.paymentDate = new Date().toISOString();
               student.failureReason = undefined;
 
               // Increment seat in slot
-              const courseDate = db.courseDates.find((cd) => cd.id === student!.courseDateId);
+              const courseDate = db.courseDates.find(
+                (cd) => cd.id === student!.courseDateId,
+              );
               if (courseDate) {
-                const slotKey = student!.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+                const slotKey =
+                  student!.selectedSlot === "slot2" ? "slot2" : "slot1";
                 if (courseDate[slotKey]) {
-                  courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+                  courseDate[slotKey].booked =
+                    (courseDate[slotKey].booked || 0) + 1;
                 }
               }
 
               saveDB(db);
-              addAuditLog('SYSTEM', 'PAYMENT_VERIFIED_AUTO', `Auto-verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
-              console.log(`[AUTO-VERIFIED PAYMENT] Student: ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`);
+              addAuditLog(
+                "SYSTEM",
+                "PAYMENT_VERIFIED_AUTO",
+                `Auto-verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`,
+              );
+              console.log(
+                `[AUTO-VERIFIED PAYMENT] Student: ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`,
+              );
 
-              const template = db.communicationSettings.templates.paymentSuccess;
+              const template =
+                db.communicationSettings.templates.paymentSuccess;
               const formattedMessage = formatMessageTemplate(template, student);
               return res.json({
                 success: true,
-                paymentStatus: 'PAID',
-                registrationStatus: 'CONFIRMED',
+                paymentStatus: "PAID",
+                registrationStatus: "CONFIRMED",
                 verified: true,
                 registration: student,
                 whatsappMessage: formattedMessage,
-                communityLink: db.whatsappSettings.communityLink || 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO',
+                communityLink:
+                  db.whatsappSettings.communityLink ||
+                  "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
               });
             }
           }
         }
       } catch (checkErr) {
-        console.warn('Proactive payment status check warning:', checkErr);
+        console.warn("Proactive payment status check warning:", checkErr);
       }
     }
 
     // Awaiting payment confirmation
     return res.json({
       success: true,
-      paymentStatus: 'PENDING',
-      registrationStatus: 'PENDING',
-      message: 'पेमेंट तपासले जात आहे. कृपया काही क्षण प्रतीक्षा करा.',
+      paymentStatus: "PENDING",
+      registrationStatus: "PENDING",
+      message: "पेमेंट तपासले जात आहे. कृपया काही क्षण प्रतीक्षा करा.",
     });
   } catch (err: any) {
-    console.error('Payment status check error:', err);
-    return res.status(500).json({ error: 'Status check failed' });
+    console.error("Payment status check error:", err);
+    return res.status(500).json({ error: "Status check failed" });
   }
 };
 
-app.get('/api/payment/status', handlePaymentStatusCheck);
-app.post('/api/payment/status', handlePaymentStatusCheck);
-app.get('/api/payment/check-status', handlePaymentStatusCheck);
-app.post('/api/payment/check-status', handlePaymentStatusCheck);
+app.get("/api/payment/status", handlePaymentStatusCheck);
+app.post("/api/payment/status", handlePaymentStatusCheck);
+app.get("/api/payment/check-status", handlePaymentStatusCheck);
+app.post("/api/payment/check-status", handlePaymentStatusCheck);
 
 // 6.3 Razorpay Webhook Handler (STEP 8 - Duplicate Safe Webhook)
-const handleRazorpayWebhook = async (req: express.Request, res: express.Response) => {
+const handleRazorpayWebhook = async (
+  req: express.Request,
+  res: express.Response,
+) => {
   try {
-    const webhookSignature = req.headers['x-razorpay-signature'] as string;
+    const webhookSignature = req.headers["x-razorpay-signature"] as string;
     const webhookBody = req.body;
     const event = webhookBody?.event;
 
     console.log(`[RAZORPAY WEBHOOK] Received event: ${event}`);
 
     // If webhook secret configured, verify signature
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || ENV_RAZORPAY_KEY_SECRET;
+    const webhookSecret =
+      process.env.RAZORPAY_WEBHOOK_SECRET || ENV_RAZORPAY_KEY_SECRET;
     if (webhookSecret && webhookSignature) {
       const rawBody = JSON.stringify(webhookBody);
-      const expectedSig = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+      const expectedSig = crypto
+        .createHmac("sha256", webhookSecret)
+        .update(rawBody)
+        .digest("hex");
       if (expectedSig !== webhookSignature) {
-        console.warn('[WEBHOOK] Invalid webhook signature received');
-        return res.status(400).json({ status: 'invalid_signature' });
+        console.warn("[WEBHOOK] Invalid webhook signature received");
+        return res.status(400).json({ status: "invalid_signature" });
       }
     }
 
-    if (event === 'payment.captured' || event === 'order.paid' || event === 'payment_link.paid') {
-      const paymentEntity = webhookBody?.payload?.payment?.entity || webhookBody?.payload?.payment_link?.entity;
-      const payId = paymentEntity?.id || '';
-      const orderId = paymentEntity?.order_id || '';
-      const contact = paymentEntity?.contact ? String(paymentEntity.contact).replace(/\D/g, '').slice(-10) : '';
-      const email = paymentEntity?.email ? String(paymentEntity.email).toLowerCase().trim() : '';
+    if (
+      event === "payment.captured" ||
+      event === "order.paid" ||
+      event === "payment_link.paid"
+    ) {
+      const paymentEntity =
+        webhookBody?.payload?.payment?.entity ||
+        webhookBody?.payload?.payment_link?.entity;
+      const payId = paymentEntity?.id || "";
+      const orderId = paymentEntity?.order_id || "";
+      const contact = paymentEntity?.contact
+        ? String(paymentEntity.contact).replace(/\D/g, "").slice(-10)
+        : "";
+      const email = paymentEntity?.email
+        ? String(paymentEntity.email).toLowerCase().trim()
+        : "";
 
       if (payId) {
         // Find matching student
         let student = db.students.find((s) => s.paymentId === payId);
-        const noteTempId = paymentEntity?.notes?.tempId || paymentEntity?.notes?.studentId || '';
+        const noteTempId =
+          paymentEntity?.notes?.tempId || paymentEntity?.notes?.studentId || "";
         if (!student && noteTempId) {
-          student = db.students.find((s) => s.id === noteTempId || s.tempId === noteTempId);
+          student = db.students.find(
+            (s) => s.id === noteTempId || s.tempId === noteTempId,
+          );
         }
         if (!student && orderId) {
           student = db.students.find((s) => s.orderId === orderId);
         }
         if (!student && contact) {
-          student = db.students.find((s) => s.mobileNumber === contact && s.paymentStatus !== 'PAID');
+          student = db.students.find(
+            (s) => s.mobileNumber === contact && s.paymentStatus !== "PAID",
+          );
         }
         if (!student && email) {
-          student = db.students.find((s) => s.email === email && s.paymentStatus !== 'PAID');
+          student = db.students.find(
+            (s) => s.email === email && s.paymentStatus !== "PAID",
+          );
         }
 
-        if (student && student.paymentStatus !== 'PAID') {
+        if (student && student.paymentStatus !== "PAID") {
           const confirmedRegId = generateNextRegistrationId(db);
           student.id = confirmedRegId;
-          student.registrationStatus = 'CONFIRMED';
-          student.paymentStatus = 'PAID';
+          student.registrationStatus = "CONFIRMED";
+          student.paymentStatus = "PAID";
           student.paymentVerified = true;
           student.paymentId = payId;
           if (orderId) student.orderId = orderId;
           student.paymentDate = new Date().toISOString();
 
           // Increment slot seat
-          const courseDate = db.courseDates.find((cd) => cd.id === student!.courseDateId);
+          const courseDate = db.courseDates.find(
+            (cd) => cd.id === student!.courseDateId,
+          );
           if (courseDate) {
-            const slotKey = student.selectedSlot === 'slot2' ? 'slot2' : 'slot1';
+            const slotKey =
+              student.selectedSlot === "slot2" ? "slot2" : "slot1";
             if (courseDate[slotKey]) {
-              courseDate[slotKey].booked = (courseDate[slotKey].booked || 0) + 1;
+              courseDate[slotKey].booked =
+                (courseDate[slotKey].booked || 0) + 1;
             }
           }
           saveDB(db);
-          addAuditLog('WEBHOOK', 'PAYMENT_CAPTURED', `Webhook confirmed student ${student.fullName} (${confirmedRegId}) | PayId: ${payId}`);
-          console.log(`[WEBHOOK SUCCESS] Confirmed ${student.fullName} with ID ${confirmedRegId}`);
+          addAuditLog(
+            "WEBHOOK",
+            "PAYMENT_CAPTURED",
+            `Webhook confirmed student ${student.fullName} (${confirmedRegId}) | PayId: ${payId}`,
+          );
+          console.log(
+            `[WEBHOOK SUCCESS] Confirmed ${student.fullName} with ID ${confirmedRegId}`,
+          );
         }
       }
-    } else if (event === 'payment.failed') {
+    } else if (event === "payment.failed") {
       const paymentEntity = webhookBody?.payload?.payment?.entity;
-      const orderId = paymentEntity?.order_id || '';
-      const contact = paymentEntity?.contact ? String(paymentEntity.contact).replace(/\D/g, '').slice(-10) : '';
+      const orderId = paymentEntity?.order_id || "";
+      const contact = paymentEntity?.contact
+        ? String(paymentEntity.contact).replace(/\D/g, "").slice(-10)
+        : "";
 
-      let student = orderId ? db.students.find((s) => s.orderId === orderId) : undefined;
+      let student = orderId
+        ? db.students.find((s) => s.orderId === orderId)
+        : undefined;
       if (!student && contact) {
-        student = db.students.find((s) => s.mobileNumber === contact && s.paymentStatus !== 'PAID');
+        student = db.students.find(
+          (s) => s.mobileNumber === contact && s.paymentStatus !== "PAID",
+        );
       }
-      if (student && student.paymentStatus !== 'PAID') {
-        student.paymentStatus = 'FAILED';
-        student.failureReason = paymentEntity?.error_description || 'Payment failed on gateway';
+      if (student && student.paymentStatus !== "PAID") {
+        student.paymentStatus = "FAILED";
+        student.failureReason =
+          paymentEntity?.error_description || "Payment failed on gateway";
         saveDB(db);
       }
     }
 
-    return res.json({ status: 'ok' });
+    return res.json({ status: "ok" });
   } catch (err: any) {
-    console.error('Webhook Error:', err);
-    return res.status(500).json({ error: 'Webhook processing error' });
+    console.error("Webhook Error:", err);
+    return res.status(500).json({ error: "Webhook processing error" });
   }
 };
 
-app.post('/api/payment/webhook', handleRazorpayWebhook);
-app.post('/api/razorpay-webhook', handleRazorpayWebhook);
+app.post("/api/payment/webhook", handleRazorpayWebhook);
+app.post("/api/razorpay-webhook", handleRazorpayWebhook);
 
 // 7. Student Lookup
-app.get('/api/lookup/:query', (req, res) => {
+app.get("/api/lookup/:query", (req, res) => {
   const query = req.params.query.trim().toLowerCase();
   const student = db.students.find(
     (s) =>
       s.mobileNumber.toLowerCase() === query ||
       s.id.toLowerCase() === query ||
       s.whatsappNumber.toLowerCase() === query ||
-      s.email.toLowerCase() === query
+      s.email.toLowerCase() === query,
   );
 
   if (!student) {
-    return res.status(404).json({ error: 'कोणतीही नोंदणी आढळली नाही. कृपया मोबाईल नंबर किंवा Registration ID तपासा.' });
+    return res
+      .status(404)
+      .json({
+        error:
+          "कोणतीही नोंदणी आढळली नाही. कृपया मोबाईल नंबर किंवा Registration ID तपासा.",
+      });
   }
 
-  const template = student.paymentStatus === 'PAID'
-    ? db.communicationSettings.templates.paymentSuccess
-    : db.communicationSettings.templates.paymentPending;
+  const template =
+    student.paymentStatus === "PAID"
+      ? db.communicationSettings.templates.paymentSuccess
+      : db.communicationSettings.templates.paymentPending;
 
   const formattedMsg = formatMessageTemplate(template, student);
 
@@ -1543,26 +1948,31 @@ app.get('/api/lookup/:query', (req, res) => {
 // -----------------------------
 
 // 7.1 Admin Auth Status Check
-app.get('/api/admin/auth-status', (req, res) => {
+app.get("/api/admin/auth-status", (req, res) => {
   const { isConfigured } = getAdminCredentials();
   res.json({
     configured: isConfigured,
     message: isConfigured
-      ? 'Admin credentials configured.'
-      : 'Server admin credentials (ADMIN_USERNAME / ADMIN_PASSWORD) missing in environment variables.',
+      ? "Admin credentials configured."
+      : "Server admin credentials (ADMIN_USERNAME / ADMIN_PASSWORD) missing in environment variables.",
   });
 });
 
 // 8. Admin Login
-app.post('/api/admin/login', (req, res) => {
+app.post("/api/admin/login", (req, res) => {
   const { username, password } = req.body;
   const { username: envUser, password: envPass } = getAdminCredentials();
 
-  const inputUser = String(username || '').trim();
-  const inputPass = String(password || '').trim();
+  const inputUser = String(username || "").trim();
+  const inputPass = String(password || "").trim();
 
   if (!inputUser || !inputPass) {
-    return res.status(400).json({ error: 'कृपया Username आणि Password दोन्ही प्रविष्ट करा (Please enter both username and password).' });
+    return res
+      .status(400)
+      .json({
+        error:
+          "कृपया Username आणि Password दोन्ही प्रविष्ट करा (Please enter both username and password).",
+      });
   }
 
   // Check 1: Match against active env/default credentials
@@ -1575,37 +1985,51 @@ app.post('/api/admin/login', (req, res) => {
     (a) =>
       a.username.toLowerCase() === inputUser.toLowerCase() &&
       (a.passwordHash === inputHash || (isEnvPassMatch && isEnvUserMatch)) &&
-      a.active !== false
+      a.active !== false,
   );
 
-  const isAuthenticated = (isEnvUserMatch && isEnvPassMatch) || !!matchedDbAdmin;
+  const isAuthenticated =
+    (isEnvUserMatch && isEnvPassMatch) || !!matchedDbAdmin;
 
   if (!isAuthenticated) {
-    console.warn(`[AUTH] Invalid admin login attempt for user: "${inputUser}" from IP: ${req.ip}`);
-    return res.status(401).json({ error: 'चुकीचे Username किंवा Password (Invalid username or password).' });
+    console.warn(
+      `[AUTH] Invalid admin login attempt for user: "${inputUser}" from IP: ${req.ip}`,
+    );
+    return res
+      .status(401)
+      .json({
+        error: "चुकीचे Username किंवा Password (Invalid username or password).",
+      });
   }
 
   const authenticatedUsername = matchedDbAdmin?.username || envUser;
   const token = createAdminToken(authenticatedUsername);
 
-  addAuditLog(authenticatedUsername, 'ADMIN_LOGIN', 'Admin login successful', req.ip);
-  console.log(`[AUTH] Admin login successful for user: "${authenticatedUsername}"`);
+  addAuditLog(
+    authenticatedUsername,
+    "ADMIN_LOGIN",
+    "Admin login successful",
+    req.ip,
+  );
+  console.log(
+    `[AUTH] Admin login successful for user: "${authenticatedUsername}"`,
+  );
 
   return res.json({
     success: true,
     token,
     admin: {
-      id: matchedDbAdmin?.id || 'admin_1',
+      id: matchedDbAdmin?.id || "admin_1",
       username: authenticatedUsername,
-      name: matchedDbAdmin?.name || 'Super Administrator',
-      role: matchedDbAdmin?.role || 'SUPER_ADMIN',
+      name: matchedDbAdmin?.name || "Super Administrator",
+      role: matchedDbAdmin?.role || "SUPER_ADMIN",
       mustChangePassword: false,
     },
   });
 });
 
 // 9. Admin Current Session Info
-app.get('/api/admin/me', authenticateAdmin, (req, res) => {
+app.get("/api/admin/me", authenticateAdmin, (req, res) => {
   const admin = (req as any).admin;
   res.json({
     admin: {
@@ -1619,37 +2043,59 @@ app.get('/api/admin/me', authenticateAdmin, (req, res) => {
 });
 
 // 10. Admin Dashboard Metrics
-app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
+app.get("/api/admin/dashboard", authenticateAdmin, (req, res) => {
   const totalRegistrations = db.students.length;
-  const paidStudents = db.students.filter((s) => s.paymentStatus === 'PAID').length;
-  const pendingPayments = db.students.filter((s) => s.paymentStatus === 'PENDING').length;
-  const failedPayments = db.students.filter((s) => s.paymentStatus === 'FAILED').length;
-  const cancelledPayments = db.students.filter((s) => s.paymentStatus === 'CANCELLED').length;
+  const paidStudents = db.students.filter(
+    (s) => s.paymentStatus === "PAID",
+  ).length;
+  const pendingPayments = db.students.filter(
+    (s) => s.paymentStatus === "PENDING",
+  ).length;
+  const failedPayments = db.students.filter(
+    (s) => s.paymentStatus === "FAILED",
+  ).length;
+  const cancelledPayments = db.students.filter(
+    (s) => s.paymentStatus === "CANCELLED",
+  ).length;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayStudents = db.students.filter((s) => s.registrationDate.startsWith(todayStr) && s.paymentStatus === 'PAID').length;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStudents = db.students.filter(
+    (s) =>
+      s.registrationDate.startsWith(todayStr) && s.paymentStatus === "PAID",
+  ).length;
 
-  const slot1Bookings = db.students.filter((s) => s.selectedSlot === 'slot1' && s.paymentStatus === 'PAID').length;
-  const slot2Bookings = db.students.filter((s) => s.selectedSlot === 'slot2' && s.paymentStatus === 'PAID').length;
+  const slot1Bookings = db.students.filter(
+    (s) => s.selectedSlot === "slot1" && s.paymentStatus === "PAID",
+  ).length;
+  const slot2Bookings = db.students.filter(
+    (s) => s.selectedSlot === "slot2" && s.paymentStatus === "PAID",
+  ).length;
 
   const totalRevenue = db.students
-    .filter((s) => s.paymentStatus === 'PAID')
-    .reduce((sum, s) => sum + (s.amountPaid || db.paymentSettings.courseFee || 99), 0);
+    .filter((s) => s.paymentStatus === "PAID")
+    .reduce(
+      (sum, s) => sum + (s.amountPaid || db.paymentSettings.courseFee || 99),
+      0,
+    );
 
   const activeDates = db.courseDates.filter((cd) => cd.enabled);
-  const upcomingCourseDate = activeDates.length > 0 ? activeDates[0].displayDate : 'Sunday, 23 August 2026';
-  const upcomingSlot = 'Slot 1: 11:00 AM – 1:00 PM | Slot 2: 7:00 PM – 9:00 PM';
+  const upcomingCourseDate =
+    activeDates.length > 0
+      ? activeDates[0].displayDate
+      : "Sunday, 20 September 2026";
+  const upcomingSlot = "Slot 1: 11:00 AM – 1:00 PM | Slot 2: 7:00 PM – 9:00 PM";
 
   // Registrations grouped by date
   const dateMap: Record<string, { count: number; revenue: number }> = {};
   db.students.forEach((s) => {
-    const dKey = s.registrationDate.split('T')[0];
+    const dKey = s.registrationDate.split("T")[0];
     if (!dateMap[dKey]) {
       dateMap[dKey] = { count: 0, revenue: 0 };
     }
     dateMap[dKey].count += 1;
-    if (s.paymentStatus === 'PAID') {
-      dateMap[dKey].revenue += s.amountPaid || db.paymentSettings.courseFee || 99;
+    if (s.paymentStatus === "PAID") {
+      dateMap[dKey].revenue +=
+        s.amountPaid || db.paymentSettings.courseFee || 99;
     }
   });
 
@@ -1678,26 +2124,26 @@ app.get('/api/admin/dashboard', authenticateAdmin, (req, res) => {
       upcomingSlot,
       registrationsByDate,
       slotDistribution: [
-        { slotName: 'Slot 1 (11:00 AM - 1:00 PM)', count: slot1Bookings },
-        { slotName: 'Slot 2 (7:00 PM - 9:00 PM)', count: slot2Bookings },
+        { slotName: "Slot 1 (11:00 AM - 1:00 PM)", count: slot1Bookings },
+        { slotName: "Slot 2 (7:00 PM - 9:00 PM)", count: slot2Bookings },
       ],
       paymentStatusDistribution: [
-        { status: 'PAID', count: paidStudents },
-        { status: 'PENDING', count: pendingPayments },
-        { status: 'FAILED', count: failedPayments },
-        { status: 'CANCELLED', count: cancelledPayments },
+        { status: "PAID", count: paidStudents },
+        { status: "PENDING", count: pendingPayments },
+        { status: "FAILED", count: failedPayments },
+        { status: "CANCELLED", count: cancelledPayments },
       ],
     },
   });
 });
 
 // 11. Students Management
-app.get('/api/admin/students', authenticateAdmin, (req, res) => {
+app.get("/api/admin/students", authenticateAdmin, (req, res) => {
   const { search, dateId, slot, paymentStatus } = req.query;
 
   let filtered = [...db.students];
 
-  if (search && typeof search === 'string') {
+  if (search && typeof search === "string") {
     const q = search.toLowerCase();
     filtered = filtered.filter(
       (s) =>
@@ -1705,31 +2151,35 @@ app.get('/api/admin/students', authenticateAdmin, (req, res) => {
         s.mobileNumber.includes(q) ||
         s.id.toLowerCase().includes(q) ||
         s.email.toLowerCase().includes(q) ||
-        s.district.toLowerCase().includes(q)
+        s.district.toLowerCase().includes(q),
     );
   }
 
-  if (dateId && typeof dateId === 'string' && dateId !== 'ALL') {
+  if (dateId && typeof dateId === "string" && dateId !== "ALL") {
     filtered = filtered.filter((s) => s.courseDateId === dateId);
   }
 
-  if (slot && typeof slot === 'string' && slot !== 'ALL') {
+  if (slot && typeof slot === "string" && slot !== "ALL") {
     filtered = filtered.filter((s) => s.selectedSlot === slot);
   }
 
-  if (paymentStatus && typeof paymentStatus === 'string' && paymentStatus !== 'ALL') {
+  if (
+    paymentStatus &&
+    typeof paymentStatus === "string" &&
+    paymentStatus !== "ALL"
+  ) {
     filtered = filtered.filter((s) => s.paymentStatus === paymentStatus);
   }
 
   res.json({ total: filtered.length, students: filtered });
 });
 
-app.put('/api/admin/students/:id', authenticateAdmin, (req, res) => {
+app.put("/api/admin/students/:id", authenticateAdmin, (req, res) => {
   const { id } = req.params;
   const student = db.students.find((s) => s.id === id);
 
   if (!student) {
-    return res.status(404).json({ error: 'विद्यार्थी सापडला नाही.' });
+    return res.status(404).json({ error: "विद्यार्थी सापडला नाही." });
   }
 
   const {
@@ -1754,32 +2204,46 @@ app.put('/api/admin/students/:id', authenticateAdmin, (req, res) => {
   if (paymentStatus !== undefined) student.paymentStatus = paymentStatus;
   if (paymentId !== undefined) student.paymentId = paymentId;
   if (amountPaid !== undefined) student.amountPaid = Number(amountPaid);
-  if (whatsappJoined !== undefined) student.whatsappJoined = Boolean(whatsappJoined);
+  if (whatsappJoined !== undefined)
+    student.whatsappJoined = Boolean(whatsappJoined);
 
   saveDB(db);
-  addAuditLog((req as any).admin.username, 'UPDATE_STUDENT', `Updated student ${id} status: ${student.paymentStatus}`);
+  addAuditLog(
+    (req as any).admin.username,
+    "UPDATE_STUDENT",
+    `Updated student ${id} status: ${student.paymentStatus}`,
+  );
 
   res.json({ success: true, student });
 });
 
-app.delete('/api/admin/students/:id', authenticateAdmin, (req, res) => {
+app.delete("/api/admin/students/:id", authenticateAdmin, (req, res) => {
   const { id } = req.params;
   db.students = db.students.filter((s) => s.id !== id);
   saveDB(db);
 
-  addAuditLog((req as any).admin.username, 'DELETE_STUDENT', `Deleted student record ${id}`);
-  res.json({ success: true, message: 'विद्यार्थी रेकॉर्ड यशस्वीरित्या हटवला.' });
+  addAuditLog(
+    (req as any).admin.username,
+    "DELETE_STUDENT",
+    `Deleted student record ${id}`,
+  );
+  res.json({
+    success: true,
+    message: "विद्यार्थी रेकॉर्ड यशस्वीरित्या हटवला.",
+  });
 });
 
 // 12. Course & Slot Management
-app.get('/api/admin/course-dates', authenticateAdmin, (req, res) => {
+app.get("/api/admin/course-dates", authenticateAdmin, (req, res) => {
   res.json({ courseDates: db.courseDates });
 });
 
-app.post('/api/admin/course-dates', authenticateAdmin, (req, res) => {
+app.post("/api/admin/course-dates", authenticateAdmin, (req, res) => {
   const { date, displayDate, slot1, slot2 } = req.body;
   if (!date || !displayDate) {
-    return res.status(400).json({ error: 'कोर्स तारीख व नाव भरणे आवश्यक आहे.' });
+    return res
+      .status(400)
+      .json({ error: "कोर्स तारीख व नाव भरणे आवश्यक आहे." });
   }
 
   const newCourseDate = {
@@ -1788,45 +2252,56 @@ app.post('/api/admin/course-dates', authenticateAdmin, (req, res) => {
     displayDate,
     enabled: true,
     slot1: {
-      id: 'slot1' as const,
-      name: slot1?.name || 'Slot 1 (सकाळ)',
-      startTime: slot1?.startTime || '11:00 AM',
-      endTime: slot1?.endTime || '1:00 PM',
+      id: "slot1" as const,
+      name: slot1?.name || "Slot 1 (सकाळ)",
+      startTime: slot1?.startTime || "11:00 AM",
+      endTime: slot1?.endTime || "1:00 PM",
       capacity: Number(slot1?.capacity) || 50,
       booked: 0,
       enabled: slot1?.enabled !== undefined ? Boolean(slot1.enabled) : true,
-      meetLink: slot1?.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-slot1-live',
+      meetLink:
+        slot1?.meetLink ||
+        db.liveSessionSettings.googleMeetLink ||
+        "https://meet.google.com/amg-slot1-live",
     },
     slot2: {
-      id: 'slot2' as const,
-      name: slot2?.name || 'Slot 2 (संध्याकाळ)',
-      startTime: slot2?.startTime || '7:00 PM',
-      endTime: slot2?.endTime || '9:00 PM',
+      id: "slot2" as const,
+      name: slot2?.name || "Slot 2 (संध्याकाळ)",
+      startTime: slot2?.startTime || "7:00 PM",
+      endTime: slot2?.endTime || "9:00 PM",
       capacity: Number(slot2?.capacity) || 50,
       booked: 0,
       enabled: slot2?.enabled !== undefined ? Boolean(slot2.enabled) : true,
-      meetLink: slot2?.meetLink || db.liveSessionSettings.googleMeetLink || 'https://meet.google.com/amg-slot2-live',
+      meetLink:
+        slot2?.meetLink ||
+        db.liveSessionSettings.googleMeetLink ||
+        "https://meet.google.com/amg-slot2-live",
     },
   };
 
   db.courseDates.unshift(newCourseDate);
   saveDB(db);
 
-  addAuditLog((req as any).admin.username, 'CREATE_COURSE_DATE', `Created course date: ${displayDate}`);
+  addAuditLog(
+    (req as any).admin.username,
+    "CREATE_COURSE_DATE",
+    `Created course date: ${displayDate}`,
+  );
   res.json({ success: true, courseDate: newCourseDate });
 });
 
-app.put('/api/admin/course-dates/:id', authenticateAdmin, (req, res) => {
+app.put("/api/admin/course-dates/:id", authenticateAdmin, (req, res) => {
   const { id } = req.params;
   const index = db.courseDates.findIndex((cd) => cd.id === id);
   if (index === -1) {
-    return res.status(404).json({ error: 'तारीख आढळली नाही.' });
+    return res.status(404).json({ error: "तारीख आढळली नाही." });
   }
 
   const { date, displayDate, enabled, slot1, slot2 } = req.body;
 
   if (date !== undefined) db.courseDates[index].date = date;
-  if (displayDate !== undefined) db.courseDates[index].displayDate = displayDate;
+  if (displayDate !== undefined)
+    db.courseDates[index].displayDate = displayDate;
   if (enabled !== undefined) db.courseDates[index].enabled = Boolean(enabled);
 
   if (slot1) {
@@ -1834,7 +2309,10 @@ app.put('/api/admin/course-dates/:id', authenticateAdmin, (req, res) => {
       ...db.courseDates[index].slot1,
       ...slot1,
       capacity: Number(slot1.capacity) || db.courseDates[index].slot1.capacity,
-      enabled: slot1.enabled !== undefined ? Boolean(slot1.enabled) : db.courseDates[index].slot1.enabled,
+      enabled:
+        slot1.enabled !== undefined
+          ? Boolean(slot1.enabled)
+          : db.courseDates[index].slot1.enabled,
     };
   }
 
@@ -1843,33 +2321,50 @@ app.put('/api/admin/course-dates/:id', authenticateAdmin, (req, res) => {
       ...db.courseDates[index].slot2,
       ...slot2,
       capacity: Number(slot2.capacity) || db.courseDates[index].slot2.capacity,
-      enabled: slot2.enabled !== undefined ? Boolean(slot2.enabled) : db.courseDates[index].slot2.enabled,
+      enabled:
+        slot2.enabled !== undefined
+          ? Boolean(slot2.enabled)
+          : db.courseDates[index].slot2.enabled,
     };
   }
 
   saveDB(db);
-  addAuditLog((req as any).admin.username, 'UPDATE_COURSE_DATE', `Updated course date: ${id}`);
+  addAuditLog(
+    (req as any).admin.username,
+    "UPDATE_COURSE_DATE",
+    `Updated course date: ${id}`,
+  );
   res.json({ success: true, courseDate: db.courseDates[index] });
 });
 
-app.delete('/api/admin/course-dates/:id', authenticateAdmin, (req, res) => {
+app.delete("/api/admin/course-dates/:id", authenticateAdmin, (req, res) => {
   const { id } = req.params;
   db.courseDates = db.courseDates.filter((cd) => cd.id !== id);
   saveDB(db);
 
-  addAuditLog((req as any).admin.username, 'DELETE_COURSE_DATE', `Deleted course date ${id}`);
-  res.json({ success: true, message: 'तारीख यशस्वीरित्या हटवली.' });
+  addAuditLog(
+    (req as any).admin.username,
+    "DELETE_COURSE_DATE",
+    `Deleted course date ${id}`,
+  );
+  res.json({ success: true, message: "तारीख यशस्वीरित्या हटवली." });
 });
 
 // 13. Payment Settings Endpoints
-app.get('/api/admin/payment-settings', authenticateAdmin, (req, res) => {
+app.get("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   res.json({
     paymentSettings: db.paymentSettings,
   });
 });
 
-app.put('/api/admin/payment-settings', authenticateAdmin, (req, res) => {
-  const { courseFee, originalFee, razorpayPaymentLink, paymentMode, razorpayKeyId } = req.body;
+app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
+  const {
+    courseFee,
+    originalFee,
+    razorpayPaymentLink,
+    paymentMode,
+    razorpayKeyId,
+  } = req.body;
 
   if (courseFee !== undefined) {
     db.paymentSettings.courseFee = Number(courseFee);
@@ -1892,26 +2387,32 @@ app.put('/api/admin/payment-settings', authenticateAdmin, (req, res) => {
   saveDB(db);
   addAuditLog(
     (req as any).admin.username,
-    'UPDATE_PAYMENT_SETTINGS',
-    `Updated Payment Settings: Fee ₹${db.paymentSettings.courseFee}, Link: ${db.paymentSettings.razorpayPaymentLink}`
+    "UPDATE_PAYMENT_SETTINGS",
+    `Updated Payment Settings: Fee ₹${db.paymentSettings.courseFee}, Link: ${db.paymentSettings.razorpayPaymentLink}`,
   );
 
   res.json({
     success: true,
-    message: 'पेमेंट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.',
+    message: "पेमेंट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.",
     paymentSettings: db.paymentSettings,
   });
 });
 
 // 14. WhatsApp Settings Endpoints
-app.get('/api/admin/whatsapp-settings', authenticateAdmin, (req, res) => {
+app.get("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
   res.json({
     whatsappSettings: db.whatsappSettings,
   });
 });
 
-app.put('/api/admin/whatsapp-settings', authenticateAdmin, (req, res) => {
-  const { communityLink, groupLink, adminWhatsAppNumber, customSuccessMessage, buttonText } = req.body;
+app.put("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
+  const {
+    communityLink,
+    groupLink,
+    adminWhatsAppNumber,
+    customSuccessMessage,
+    buttonText,
+  } = req.body;
 
   if (communityLink !== undefined) {
     db.whatsappSettings.communityLink = String(communityLink).trim();
@@ -1922,12 +2423,16 @@ app.put('/api/admin/whatsapp-settings', authenticateAdmin, (req, res) => {
     db.communicationSettings.groupLink = String(groupLink).trim();
   }
   if (adminWhatsAppNumber !== undefined) {
-    db.whatsappSettings.adminWhatsAppNumber = String(adminWhatsAppNumber).trim();
-    db.communicationSettings.businessNumber = String(adminWhatsAppNumber).trim();
+    db.whatsappSettings.adminWhatsAppNumber =
+      String(adminWhatsAppNumber).trim();
+    db.communicationSettings.businessNumber =
+      String(adminWhatsAppNumber).trim();
   }
   if (customSuccessMessage !== undefined) {
-    db.whatsappSettings.customSuccessMessage = String(customSuccessMessage).trim();
-    db.communicationSettings.customSuccessMessage = String(customSuccessMessage).trim();
+    db.whatsappSettings.customSuccessMessage =
+      String(customSuccessMessage).trim();
+    db.communicationSettings.customSuccessMessage =
+      String(customSuccessMessage).trim();
   }
   if (buttonText !== undefined) {
     db.whatsappSettings.buttonText = String(buttonText).trim();
@@ -1937,25 +2442,25 @@ app.put('/api/admin/whatsapp-settings', authenticateAdmin, (req, res) => {
   saveDB(db);
   addAuditLog(
     (req as any).admin.username,
-    'UPDATE_WHATSAPP_SETTINGS',
-    `Updated WhatsApp Settings: Link ${db.whatsappSettings.communityLink}`
+    "UPDATE_WHATSAPP_SETTINGS",
+    `Updated WhatsApp Settings: Link ${db.whatsappSettings.communityLink}`,
   );
 
   res.json({
     success: true,
-    message: 'WhatsApp सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.',
+    message: "WhatsApp सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.",
     whatsappSettings: db.whatsappSettings,
   });
 });
 
 // 15. Automated Message Settings Endpoints
-app.get('/api/admin/messages', authenticateAdmin, (req, res) => {
+app.get("/api/admin/messages", authenticateAdmin, (req, res) => {
   res.json({
     templates: db.communicationSettings.templates,
   });
 });
 
-app.put('/api/admin/messages', authenticateAdmin, (req, res) => {
+app.put("/api/admin/messages", authenticateAdmin, (req, res) => {
   const { templates } = req.body;
 
   if (templates) {
@@ -1964,43 +2469,59 @@ app.put('/api/admin/messages', authenticateAdmin, (req, res) => {
       ...templates,
     };
     saveDB(db);
-    addAuditLog((req as any).admin.username, 'UPDATE_MESSAGES', 'Updated automated message templates.');
+    addAuditLog(
+      (req as any).admin.username,
+      "UPDATE_MESSAGES",
+      "Updated automated message templates.",
+    );
   }
 
   res.json({
     success: true,
-    message: 'मेसेज टेम्पलेट्स यशस्वीरित्या सेव्ह केले.',
+    message: "मेसेज टेम्पलेट्स यशस्वीरित्या सेव्ह केले.",
     templates: db.communicationSettings.templates,
   });
 });
 
 // 16. Live Session / Google Meet Settings
-app.get('/api/admin/live-session', authenticateAdmin, (req, res) => {
+app.get("/api/admin/live-session", authenticateAdmin, (req, res) => {
   res.json({
     liveSessionSettings: db.liveSessionSettings,
   });
 });
 
-app.put('/api/admin/live-session', authenticateAdmin, (req, res) => {
+app.put("/api/admin/live-session", authenticateAdmin, (req, res) => {
   const { googleMeetLink, instructions, sessionAccessMessage } = req.body;
 
-  if (googleMeetLink !== undefined) db.liveSessionSettings.googleMeetLink = String(googleMeetLink).trim();
-  if (instructions !== undefined) db.liveSessionSettings.instructions = String(instructions).trim();
-  if (sessionAccessMessage !== undefined) db.liveSessionSettings.sessionAccessMessage = String(sessionAccessMessage).trim();
+  if (googleMeetLink !== undefined)
+    db.liveSessionSettings.googleMeetLink = String(googleMeetLink).trim();
+  if (instructions !== undefined)
+    db.liveSessionSettings.instructions = String(instructions).trim();
+  if (sessionAccessMessage !== undefined)
+    db.liveSessionSettings.sessionAccessMessage =
+      String(sessionAccessMessage).trim();
 
   saveDB(db);
-  addAuditLog((req as any).admin.username, 'UPDATE_LIVE_SESSION', `Updated Live Session Meet link: ${db.liveSessionSettings.googleMeetLink}`);
+  addAuditLog(
+    (req as any).admin.username,
+    "UPDATE_LIVE_SESSION",
+    `Updated Live Session Meet link: ${db.liveSessionSettings.googleMeetLink}`,
+  );
 
   res.json({
     success: true,
-    message: 'Live Session सेटिंग्ज सेव्ह केल्या.',
+    message: "Live Session सेटिंग्ज सेव्ह केल्या.",
     liveSessionSettings: db.liveSessionSettings,
   });
 });
 
 // 17. Central Website Content / CMS Settings
-app.get('/api/admin/website-settings', authenticateAdmin, (req, res) => {
-  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
+app.get("/api/admin/website-settings", authenticateAdmin, (req, res) => {
+  const currentPhoto =
+    db.siteSettings.instructor_photo_url ||
+    db.siteSettings.instructorPhoto ||
+    db.siteSettings.instructorPhotoUrl ||
+    "";
   res.json({
     siteSettings: {
       ...db.siteSettings,
@@ -2014,7 +2535,7 @@ app.get('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   });
 });
 
-app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
+app.put("/api/admin/website-settings", authenticateAdmin, (req, res) => {
   const {
     courseName,
     courseFee,
@@ -2022,6 +2543,7 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
     heroHeading,
     heroSubtitle,
     instructorName,
+    instructorNameEn,
     instructorTitle,
     instructorBio,
     instructorPhoto,
@@ -2048,36 +2570,70 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   }
   if (heroHeading !== undefined) db.siteSettings.heroHeading = heroHeading;
   if (heroSubtitle !== undefined) db.siteSettings.heroSubtitle = heroSubtitle;
-  if (instructorName !== undefined) db.siteSettings.instructorName = instructorName;
-  if (instructorTitle !== undefined) db.siteSettings.instructorTitle = instructorTitle;
-  if (instructorBio !== undefined) db.siteSettings.instructorBio = instructorBio;
+  if (instructorName !== undefined)
+    db.siteSettings.instructorName = instructorName;
+  if (instructorNameEn !== undefined)
+    db.siteSettings.instructorNameEn = instructorNameEn;
+  if (instructorTitle !== undefined)
+    db.siteSettings.instructorTitle = instructorTitle;
+  if (instructorBio !== undefined)
+    db.siteSettings.instructorBio = instructorBio;
 
-  const resolvedPhoto = imageBase64 || instructor_photo_url || instructorPhoto || instructorPhotoUrl;
+  const resolvedPhoto =
+    imageBase64 ||
+    instructor_photo_url ||
+    instructorPhoto ||
+    instructorPhotoUrl;
   if (resolvedPhoto !== undefined && resolvedPhoto !== null) {
-    if (typeof resolvedPhoto === 'string' && resolvedPhoto.startsWith('data:image/')) {
+    if (
+      typeof resolvedPhoto === "string" &&
+      resolvedPhoto.startsWith("data:image/")
+    ) {
       try {
-        if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-        const base64Data = resolvedPhoto.replace(/^data:image\/\w+;base64,/, '');
-        const buffer = Buffer.from(base64Data, 'base64');
-        fs.writeFileSync(path.join(PUBLIC_DIR, 'pankaj-photo.png'), buffer);
-        fs.writeFileSync(path.join(UPLOADS_DIR, 'instructor-photo.png'), buffer);
+        if (!fs.existsSync(PUBLIC_DIR))
+          fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+        if (!fs.existsSync(UPLOADS_DIR))
+          fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        const base64Data = resolvedPhoto.replace(
+          /^data:image\/\w+;base64,/,
+          "",
+        );
+        const buffer = Buffer.from(base64Data, "base64");
+        fs.writeFileSync(path.join(PUBLIC_DIR, "pankaj-photo.png"), buffer);
+        fs.writeFileSync(
+          path.join(UPLOADS_DIR, "instructor-photo.png"),
+          buffer,
+        );
+        const photoStaticUrl = `/pankaj-photo.png?v=${Date.now()}`;
+        db.siteSettings.instructor_photo_url = photoStaticUrl;
+        db.siteSettings.instructorPhoto = photoStaticUrl;
+        db.siteSettings.instructorPhotoUrl = photoStaticUrl;
       } catch (err) {
-        console.error('Failed to write photo to disk:', err);
+        console.error("Failed to write photo to disk:", err);
+        db.siteSettings.instructor_photo_url = resolvedPhoto;
+        db.siteSettings.instructorPhoto = resolvedPhoto;
+        db.siteSettings.instructorPhotoUrl = resolvedPhoto;
       }
+    } else {
+      const trimmedPhoto = String(resolvedPhoto).trim();
+      db.siteSettings.instructor_photo_url = trimmedPhoto;
+      db.siteSettings.instructorPhoto = trimmedPhoto;
+      db.siteSettings.instructorPhotoUrl = trimmedPhoto;
     }
-    db.siteSettings.instructor_photo_url = resolvedPhoto;
-    db.siteSettings.instructorPhoto = resolvedPhoto;
-    db.siteSettings.instructorPhotoUrl = resolvedPhoto;
   }
 
-  if (instagramLink !== undefined) db.siteSettings.instagramLink = instagramLink;
+  if (instagramLink !== undefined)
+    db.siteSettings.instagramLink = instagramLink;
   if (youtubeLink !== undefined) db.siteSettings.youtubeLink = youtubeLink;
-  if (contactNumber !== undefined) db.siteSettings.contactNumber = contactNumber;
+  if (contactNumber !== undefined)
+    db.siteSettings.contactNumber = contactNumber;
   if (contactEmail !== undefined) db.siteSettings.contactEmail = contactEmail;
 
   if (whatsappCommunityLink !== undefined) {
     db.whatsappSettings.communityLink = String(whatsappCommunityLink).trim();
-    db.communicationSettings.communityLink = String(whatsappCommunityLink).trim();
+    db.communicationSettings.communityLink = String(
+      whatsappCommunityLink,
+    ).trim();
   }
   if (razorpayPaymentLink !== undefined) {
     db.paymentSettings.razorpayPaymentLink = String(razorpayPaymentLink).trim();
@@ -2087,12 +2643,20 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
   }
 
   saveDB(db);
-  addAuditLog((req as any).admin.username, 'UPDATE_WEBSITE_SETTINGS', 'Updated central website settings & CMS.');
+  addAuditLog(
+    (req as any).admin.username,
+    "UPDATE_WEBSITE_SETTINGS",
+    "Updated central website settings & CMS.",
+  );
 
-  const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || db.siteSettings.instructorPhotoUrl || '';
+  const currentPhoto =
+    db.siteSettings.instructor_photo_url ||
+    db.siteSettings.instructorPhoto ||
+    db.siteSettings.instructorPhotoUrl ||
+    "";
   res.json({
     success: true,
-    message: 'वेबसाईट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.',
+    message: "वेबसाईट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.",
     siteSettings: {
       ...db.siteSettings,
       instructor_photo_url: currentPhoto,
@@ -2103,24 +2667,32 @@ app.put('/api/admin/website-settings', authenticateAdmin, (req, res) => {
 });
 
 // 17.1 Dedicated Instructor Photo Direct Stream Endpoint
-app.get('/api/instructor-photo', (req, res) => {
-  const photo = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || '';
-  if (photo && photo.startsWith('data:image/')) {
+app.get("/api/instructor-photo", (req, res) => {
+  const photo =
+    db.siteSettings.instructor_photo_url ||
+    db.siteSettings.instructorPhoto ||
+    "";
+  if (photo && photo.startsWith("data:image/")) {
     const matches = photo.match(/^data:image\/(\w+);base64,(.+)$/);
     if (matches && matches[2]) {
-      const mime = matches[1] === 'jpeg' ? 'image/jpeg' : matches[1] === 'webp' ? 'image/webp' : 'image/png';
-      const imgBuffer = Buffer.from(matches[2], 'base64');
-      res.setHeader('Content-Type', mime);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      const mime =
+        matches[1] === "jpeg"
+          ? "image/jpeg"
+          : matches[1] === "webp"
+            ? "image/webp"
+            : "image/png";
+      const imgBuffer = Buffer.from(matches[2], "base64");
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "public, max-age=3600");
       return res.send(imgBuffer);
     }
   }
-  
+
   // Check static file paths
   const possiblePaths = [
-    path.join(PUBLIC_DIR, 'pankaj-photo.png'),
-    path.join(UPLOADS_DIR, 'instructor-photo.png'),
-    path.join(DATA_DIR, 'uploads', 'instructor-photo.png'),
+    path.join(PUBLIC_DIR, "pankaj-photo.png"),
+    path.join(UPLOADS_DIR, "instructor-photo.png"),
+    path.join(DATA_DIR, "uploads", "instructor-photo.png"),
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
@@ -2129,95 +2701,129 @@ app.get('/api/instructor-photo', (req, res) => {
   }
 
   // If photo is an external URL, redirect
-  if (photo && (photo.startsWith('http://') || photo.startsWith('https://'))) {
+  if (photo && (photo.startsWith("http://") || photo.startsWith("https://"))) {
     return res.redirect(photo);
   }
 
-  return res.status(404).send('No instructor photo configured');
+  return res.status(404).send("No instructor photo configured");
 });
 
 // 17.2 Dedicated Instructor Photo Upload Endpoint
-app.post('/api/admin/upload-instructor-photo', authenticateAdmin, (req, res) => {
-  const { imageBase64, photoUrl, instructor_photo_url, instructorPhoto } = req.body;
-  const imageInput = imageBase64 || instructor_photo_url || photoUrl || instructorPhoto;
+app.post(
+  "/api/admin/upload-instructor-photo",
+  authenticateAdmin,
+  (req, res) => {
+    const { imageBase64, photoUrl, instructor_photo_url, instructorPhoto } =
+      req.body;
+    const imageInput =
+      imageBase64 || instructor_photo_url || photoUrl || instructorPhoto;
 
-  if (!imageInput) {
-    return res.status(400).json({ error: 'Image data or URL is required.' });
-  }
-
-  try {
-    if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-    const dataUploads = path.join(DATA_DIR, 'uploads');
-    if (!fs.existsSync(dataUploads)) fs.mkdirSync(dataUploads, { recursive: true });
-
-    if (typeof imageInput === 'string' && imageInput.startsWith('data:image/')) {
-      const base64Data = imageInput.replace(/^data:image\/\w+;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      fs.writeFileSync(path.join(PUBLIC_DIR, 'pankaj-photo.png'), buffer);
-      fs.writeFileSync(path.join(UPLOADS_DIR, 'instructor-photo.png'), buffer);
-      fs.writeFileSync(path.join(dataUploads, 'instructor-photo.png'), buffer);
-      
-      db.siteSettings.instructor_photo_url = imageInput;
-      db.siteSettings.instructorPhoto = imageInput;
-      db.siteSettings.instructorPhotoUrl = imageInput;
-    } else {
-      const trimmedUrl = String(imageInput).trim();
-      db.siteSettings.instructor_photo_url = trimmedUrl;
-      db.siteSettings.instructorPhoto = trimmedUrl;
-      db.siteSettings.instructorPhotoUrl = trimmedUrl;
+    if (!imageInput) {
+      return res.status(400).json({ error: "Image data or URL is required." });
     }
 
-    saveDB(db);
-    addAuditLog((req as any).admin.username, 'UPDATE_INSTRUCTOR_PHOTO', 'Updated official instructor portrait photo.');
+    try {
+      if (!fs.existsSync(PUBLIC_DIR))
+        fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+      if (!fs.existsSync(UPLOADS_DIR))
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      const dataUploads = path.join(DATA_DIR, "uploads");
+      if (!fs.existsSync(dataUploads))
+        fs.mkdirSync(dataUploads, { recursive: true });
 
-    const currentPhoto = db.siteSettings.instructor_photo_url || db.siteSettings.instructorPhoto || '';
-    return res.json({
-      success: true,
-      message: 'फोटो यशस्वीरित्या अपडेट झाला आणि वेबसाईटवर लाइव्ह झाला आहे!',
-      photoUrl: currentPhoto,
-      instructor_photo_url: currentPhoto,
-      siteSettings: db.siteSettings,
-    });
-  } catch (err: any) {
-    console.error('Error uploading photo:', err);
-    return res.status(500).json({ error: 'फोटो सेव्ह करताना त्रुटी आली.' });
-  }
-});
+      if (
+        typeof imageInput === "string" &&
+        imageInput.startsWith("data:image/")
+      ) {
+        const base64Data = imageInput.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        fs.writeFileSync(path.join(PUBLIC_DIR, "pankaj-photo.png"), buffer);
+        fs.writeFileSync(
+          path.join(UPLOADS_DIR, "instructor-photo.png"),
+          buffer,
+        );
+        fs.writeFileSync(
+          path.join(dataUploads, "instructor-photo.png"),
+          buffer,
+        );
+
+        const photoStaticUrl = `/pankaj-photo.png?v=${Date.now()}`;
+        db.siteSettings.instructor_photo_url = photoStaticUrl;
+        db.siteSettings.instructorPhoto = photoStaticUrl;
+        db.siteSettings.instructorPhotoUrl = photoStaticUrl;
+      } else {
+        const trimmedUrl = String(imageInput).trim();
+        db.siteSettings.instructor_photo_url = trimmedUrl;
+        db.siteSettings.instructorPhoto = trimmedUrl;
+        db.siteSettings.instructorPhotoUrl = trimmedUrl;
+      }
+
+      saveDB(db);
+      addAuditLog(
+        (req as any).admin.username,
+        "UPDATE_INSTRUCTOR_PHOTO",
+        "Updated official instructor portrait photo.",
+      );
+
+      const currentPhoto =
+        db.siteSettings.instructor_photo_url ||
+        db.siteSettings.instructorPhoto ||
+        "";
+      return res.json({
+        success: true,
+        message: "फोटो यशस्वीरित्या अपडेट झाला आणि वेबसाईटवर लाइव्ह झाला आहे!",
+        photoUrl: currentPhoto,
+        instructor_photo_url: currentPhoto,
+        siteSettings: db.siteSettings,
+      });
+    } catch (err: any) {
+      console.error("Error uploading photo:", err);
+      return res.status(500).json({ error: "फोटो सेव्ह करताना त्रुटी आली." });
+    }
+  },
+);
 
 // 17.3 Dedicated Instructor Photo Remove Endpoint
-app.post('/api/admin/remove-instructor-photo', authenticateAdmin, (req, res) => {
-  try {
-    db.siteSettings.instructor_photo_url = '';
-    db.siteSettings.instructorPhoto = '';
-    db.siteSettings.instructorPhotoUrl = '';
-    
-    // Clear files if existing
+app.post(
+  "/api/admin/remove-instructor-photo",
+  authenticateAdmin,
+  (req, res) => {
     try {
-      const p1 = path.join(PUBLIC_DIR, 'pankaj-photo.png');
-      const p2 = path.join(UPLOADS_DIR, 'instructor-photo.png');
-      if (fs.existsSync(p1)) fs.unlinkSync(p1);
-      if (fs.existsSync(p2)) fs.unlinkSync(p2);
-    } catch (_) {}
+      db.siteSettings.instructor_photo_url = "";
+      db.siteSettings.instructorPhoto = "";
+      db.siteSettings.instructorPhotoUrl = "";
 
-    saveDB(db);
-    addAuditLog((req as any).admin.username, 'REMOVE_INSTRUCTOR_PHOTO', 'Removed official instructor photo.');
+      // Clear files if existing
+      try {
+        const p1 = path.join(PUBLIC_DIR, "pankaj-photo.png");
+        const p2 = path.join(UPLOADS_DIR, "instructor-photo.png");
+        if (fs.existsSync(p1)) fs.unlinkSync(p1);
+        if (fs.existsSync(p2)) fs.unlinkSync(p2);
+      } catch (_) {}
 
-    return res.json({
-      success: true,
-      message: 'मार्गदर्शकांचा फोटो काढून टाकला आहे.',
-      photoUrl: '',
-      instructor_photo_url: '',
-      siteSettings: db.siteSettings,
-    });
-  } catch (err: any) {
-    console.error('Error removing photo:', err);
-    return res.status(500).json({ error: 'फोटो काढताना एरर आला.' });
-  }
-});
+      saveDB(db);
+      addAuditLog(
+        (req as any).admin.username,
+        "REMOVE_INSTRUCTOR_PHOTO",
+        "Removed official instructor photo.",
+      );
+
+      return res.json({
+        success: true,
+        message: "मार्गदर्शकांचा फोटो काढून टाकला आहे.",
+        photoUrl: "",
+        instructor_photo_url: "",
+        siteSettings: db.siteSettings,
+      });
+    } catch (err: any) {
+      console.error("Error removing photo:", err);
+      return res.status(500).json({ error: "फोटो काढताना एरर आला." });
+    }
+  },
+);
 
 // 18. Admin Credentials Settings (Username & Password Change)
-app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
+app.post("/api/admin/change-credentials", authenticateAdmin, (req, res) => {
   const admin = (req as any).admin;
   const { currentPassword, newUsername, newPassword } = req.body;
   const { username: envUser, password: envPass } = getAdminCredentials();
@@ -2225,32 +2831,43 @@ app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
   // Verify current password against active env admin password or db.admins passwordHash
   if (currentPassword) {
     const isCurrentEnvCorrect = currentPassword === envPass;
-    const isCurrentHashCorrect = db.admins?.[0]?.passwordHash === hashPassword(currentPassword);
+    const isCurrentHashCorrect =
+      db.admins?.[0]?.passwordHash === hashPassword(currentPassword);
     if (!isCurrentEnvCorrect && !isCurrentHashCorrect) {
-      return res.status(400).json({ error: 'सध्याचा पासवर्ड चुकीचा आहे (Current password incorrect).' });
+      return res
+        .status(400)
+        .json({
+          error: "सध्याचा पासवर्ड चुकीचा आहे (Current password incorrect).",
+        });
     }
   }
 
   if (newPassword && newPassword.trim()) {
     if (newPassword.trim().length < 6) {
-      return res.status(400).json({ error: 'नवीन पासवर्ड किमान ६ अक्षरांचा असावा (Minimum 6 characters).' });
+      return res
+        .status(400)
+        .json({
+          error: "नवीन पासवर्ड किमान ६ अक्षरांचा असावा (Minimum 6 characters).",
+        });
     }
   }
 
   const updatedUsername = newUsername?.trim() || admin.username || envUser;
-  
+
   // Persist to db.admins
   if (!db.admins || db.admins.length === 0) {
-    db.admins = [{
-      id: 'admin_1',
-      username: updatedUsername,
-      name: 'Super Administrator',
-      passwordHash: hashPassword(newPassword?.trim() || envPass),
-      role: 'SUPER_ADMIN',
-      mustChangePassword: false,
-      active: true,
-      createdAt: new Date().toISOString(),
-    }];
+    db.admins = [
+      {
+        id: "admin_1",
+        username: updatedUsername,
+        name: "Super Administrator",
+        passwordHash: hashPassword(newPassword?.trim() || envPass),
+        role: "SUPER_ADMIN",
+        mustChangePassword: false,
+        active: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
   } else {
     db.admins[0].username = updatedUsername;
     if (newPassword && newPassword.trim()) {
@@ -2261,11 +2878,16 @@ app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
 
   const newToken = createAdminToken(updatedUsername);
 
-  addAuditLog(updatedUsername, 'CHANGE_ADMIN_CREDENTIALS', `Admin credentials updated for ${updatedUsername}.`);
+  addAuditLog(
+    updatedUsername,
+    "CHANGE_ADMIN_CREDENTIALS",
+    `Admin credentials updated for ${updatedUsername}.`,
+  );
 
   res.json({
     success: true,
-    message: 'क्रेडेंशियल्स यशस्वीरित्या अपडेट करण्यात आले आहेत (Credentials updated successfully).',
+    message:
+      "क्रेडेंशियल्स यशस्वीरित्या अपडेट करण्यात आले आहेत (Credentials updated successfully).",
     token: newToken,
     admin: {
       id: db.admins[0].id,
@@ -2277,13 +2899,13 @@ app.post('/api/admin/change-credentials', authenticateAdmin, (req, res) => {
 });
 
 // 19. Helper to generate dynamic WhatsApp copy messages per student
-app.post('/api/admin/students/:id/message', authenticateAdmin, (req, res) => {
+app.post("/api/admin/students/:id/message", authenticateAdmin, (req, res) => {
   const { id } = req.params;
-  const { templateKey = 'paymentSuccess' } = req.body;
+  const { templateKey = "paymentSuccess" } = req.body;
 
   const student = db.students.find((s) => s.id === id);
   if (!student) {
-    return res.status(404).json({ error: 'विद्यार्थी आढळला नाही.' });
+    return res.status(404).json({ error: "विद्यार्थी आढळला नाही." });
   }
 
   const rawTemplate =
@@ -2302,54 +2924,60 @@ app.post('/api/admin/students/:id/message', authenticateAdmin, (req, res) => {
 });
 
 // 20. Export CSV Endpoint
-app.get('/api/export-csv', (req, res) => {
+app.get("/api/export-csv", (req, res) => {
   const headers = [
-    'Registration ID',
-    'Full Name',
-    'Mobile Number',
-    'WhatsApp Number',
-    'Email',
-    'District',
-    'Occupation',
-    'Course Date',
-    'Course Slot',
-    'Payment Status',
-    'Amount Paid',
-    'Payment ID',
-    'Registration Date',
-    'WhatsApp Joined'
+    "Registration ID",
+    "Full Name",
+    "Mobile Number",
+    "WhatsApp Number",
+    "Email",
+    "District",
+    "Occupation",
+    "Course Date",
+    "Course Slot",
+    "Payment Status",
+    "Amount Paid",
+    "Payment ID",
+    "Registration Date",
+    "WhatsApp Joined",
   ];
 
   const rows = db.students.map((s) => [
     s.id,
-    `"${(s.fullName || '').replace(/"/g, '""')}"`,
+    `"${(s.fullName || "").replace(/"/g, '""')}"`,
     s.mobileNumber,
     s.whatsappNumber,
     s.email,
-    `"${(s.district || '').replace(/"/g, '""')}"`,
-    `"${(s.occupation || '').replace(/"/g, '""')}"`,
-    `"${(s.courseDateDisplay || '').replace(/"/g, '""')}"`,
-    `"${(s.slotTimeDisplay || '').replace(/"/g, '""')}"`,
+    `"${(s.district || "").replace(/"/g, '""')}"`,
+    `"${(s.occupation || "").replace(/"/g, '""')}"`,
+    `"${(s.courseDateDisplay || "").replace(/"/g, '""')}"`,
+    `"${(s.slotTimeDisplay || "").replace(/"/g, '""')}"`,
     s.paymentStatus,
     s.amountPaid || 99,
-    s.paymentId || 'N/A',
-    new Date(s.registrationDate).toLocaleString('en-IN'),
-    s.whatsappJoined ? 'YES' : 'NO'
+    s.paymentId || "N/A",
+    new Date(s.registrationDate).toLocaleString("en-IN"),
+    s.whatsappJoined ? "YES" : "NO",
   ]);
 
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.join(",")),
+  ].join("\n");
 
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="ai_marathi_guru_students.csv"');
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="ai_marathi_guru_students.csv"',
+  );
   res.send(csvContent);
 });
 
 // 21. Gemini AI Assistant Endpoint
-app.post('/api/ai-assistant', async (req, res) => {
+app.post("/api/ai-assistant", async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required.' });
+      return res.status(400).json({ error: "Prompt is required." });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -2361,7 +2989,7 @@ app.post('/api/ai-assistant', async (req, res) => {
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: "gemini-2.5-flash",
       contents: `You are the friendly Marathi AI Assistant for 'AI Marathi Guru' course (https://aimarathi.swaraudyog.com).
 Answer the following user question politely and concisely in clear Marathi (Devanagari script).
 Keep your answer supportive, inspiring, and focused on how learning AI in Marathi for ₹${db.paymentSettings.courseFee} can transform their career/business.
@@ -2369,48 +2997,50 @@ Keep your answer supportive, inspiring, and focused on how learning AI in Marath
 User question: ${prompt}`,
     });
 
-    const reply = response.text || 'माफ करा, कृपया पुन्हा प्रयत्न करा.';
+    const reply = response.text || "माफ करा, कृपया पुन्हा प्रयत्न करा.";
     return res.json({ reply });
   } catch (err: any) {
-    console.error('AI Assistant Error:', err);
+    console.error("AI Assistant Error:", err);
     return res.json({
-      reply: 'AI Marathi Guru कोर्सबद्दल अधिक माहितीसाठी 9801555171 वर कॉल किंवा WhatsApp करा.',
+      reply:
+        "AI Marathi Guru कोर्सबद्दल अधिक माहितीसाठी 9801555171 वर कॉल किंवा WhatsApp करा.",
     });
   }
 });
 
 // Start Server with Vite Middleware
 async function startServer() {
-  const distPath = path.join(process.cwd(), 'dist');
-  const distIndexHtml = path.join(distPath, 'index.html');
-  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(distIndexHtml);
+  const distPath = path.join(process.cwd(), "dist");
+  const distIndexHtml = path.join(distPath, "index.html");
+  const isProduction =
+    process.env.NODE_ENV === "production" || fs.existsSync(distIndexHtml);
 
   if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get("*", (req, res) => {
       res.sendFile(distIndexHtml);
     });
   }
 
   const port = Number(process.env.PORT) || 3000;
 
-  app.listen(port, '0.0.0.0', () => {
+  app.listen(port, "0.0.0.0", () => {
     console.log(`Server running on port ${port}`);
   });
 }
 
-process.on('uncaughtException', (err) => {
-  console.error('Server Uncaught Exception:', err);
+process.on("uncaughtException", (err) => {
+  console.error("Server Uncaught Exception:", err);
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Server Unhandled Rejection:', reason);
+process.on("unhandledRejection", (reason) => {
+  console.error("Server Unhandled Rejection:", reason);
 });
 
 startServer();

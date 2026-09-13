@@ -383,7 +383,7 @@ export const AdminCourseSlotsTab: React.FC<AdminCourseSlotsTabProps> = ({
                     required
                     value={formDisplayDate}
                     onChange={(e) => setFormDisplayDate(e.target.value)}
-                    placeholder="उदा. Sunday, 23 August 2026"
+                    placeholder="उदा. Sunday, 20 September 2026"
                     className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-blue-600"
                   />
                 </div>
