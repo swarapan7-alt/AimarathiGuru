@@ -127,11 +127,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const handleOpenRazorpay = async () => {
     setErrorMessage('');
 
-    // If Razorpay standard checkout script is available and key is configured, try opening standard checkout
+    // If a live Razorpay key is configured (i.e. starts with rzp_live), standard checkout is supported
+    const isLiveKey = Boolean(razorpayKeyId && razorpayKeyId.startsWith('rzp_live'));
     const rzpCheckoutAvailable =
+      isLiveKey &&
       typeof window !== 'undefined' &&
-      typeof (window as any).Razorpay !== 'undefined' &&
-      Boolean(razorpayKeyId);
+      typeof (window as any).Razorpay !== 'undefined';
 
     if (rzpCheckoutAvailable) {
       try {
@@ -224,7 +225,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }
 
-    // Open Official Razorpay Payment Link
+    // Open Official Live Razorpay Payment Link (https://rzp.io/rzp/gAmUJOS0)
+    // On Mobile: Directly opens Razorpay Checkout with UPI Intent (PhonePe, GPay, Paytm)
+    // On Desktop: Directly displays official Razorpay Live UPI QR and all payment methods
     try {
       window.open(activePaymentLink, '_blank', 'noopener,noreferrer');
     } catch (e) {
