@@ -653,7 +653,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-                    <span>PAY ₹{fee} & REGISTER</span>
+                    <span>PAY ₹{fee}</span>
                   </>
                 )}
               </button>

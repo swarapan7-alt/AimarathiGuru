@@ -81,11 +81,20 @@ export const launchRazorpayStandardCheckout = async (
     return false;
   }
 
-  // Ensure key is valid live key
-  if (!config.keyId || !config.keyId.startsWith('rzp_live')) {
-    console.error('Invalid Razorpay key ID for live checkout:', config.keyId);
+  // Ensure key is valid Razorpay key ID
+  if (!config.keyId || !config.keyId.startsWith('rzp_')) {
+    console.error('Missing or invalid Razorpay key ID:', config.keyId);
     if (config.onError) {
-      config.onError(new Error('अवैध Razorpay Live Key.'));
+      config.onError(new Error('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.'));
+    }
+    return false;
+  }
+
+  // Ensure valid Razorpay order ID exists before opening checkout
+  if (!config.orderId || !config.orderId.startsWith('order_')) {
+    console.error('Checkout cannot open without a valid Razorpay order_id:', config.orderId);
+    if (config.onError) {
+      config.onError(new Error('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.'));
     }
     return false;
   }
@@ -97,7 +106,7 @@ export const launchRazorpayStandardCheckout = async (
       currency: 'INR',
       name: config.name || 'AI Marathi Guru',
       description: config.description || 'Live Online Course Registration Fee',
-      order_id: config.orderId || undefined,
+      order_id: config.orderId,
       prefill: {
         name: config.prefill.name,
         contact: config.prefill.contact,

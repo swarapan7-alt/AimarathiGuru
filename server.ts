@@ -120,16 +120,16 @@ function verifyAdminToken(tokenString: string): {
   }
 }
 
-// Strict Razorpay LIVE Mode Configuration
-// Only Live keys (starting with rzp_live_) are accepted. Legacy rzp_test_ keys are strictly filtered out.
+// Razorpay Key Configuration
+// Resolves configured Razorpay Key ID from database payment settings or environment
 function getLiveRazorpayKeyId(): string {
-  const envKey = (process.env.RAZORPAY_KEY_ID || "").trim();
-  if (envKey.startsWith("rzp_live_")) {
-    return envKey;
-  }
   const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
-  if (dbKey.startsWith("rzp_live_")) {
+  if (dbKey) {
     return dbKey;
+  }
+  const envKey = (process.env.RAZORPAY_KEY_ID || "").trim();
+  if (envKey) {
+    return envKey;
   }
   return "";
 }
@@ -1135,6 +1135,9 @@ app.post("/api/register", async (req, res) => {
         if (orderRes.ok) {
           const orderData: any = await orderRes.json();
           razorpayOrderId = orderData.id || "";
+        } else {
+          const errText = await orderRes.text();
+          console.error("Razorpay order creation in /api/register failed:", orderRes.status, errText);
         }
       } catch (orderErr) {
         console.warn("Razorpay order creation fallback:", orderErr);
@@ -1245,9 +1248,12 @@ app.post("/api/payment/create-order", async (req, res) => {
       }
     }
 
-    if (!orderId) {
-      // Fallback secure order token for client tracking
-      orderId = `order_AMG_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    if (!orderId || !orderId.startsWith("order_")) {
+      console.error("Failed to create valid Razorpay order via Orders API");
+      return res.status(500).json({
+        success: false,
+        error: "Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.",
+      });
     }
 
     if (tempId) {
@@ -1265,10 +1271,14 @@ app.post("/api/payment/create-order", async (req, res) => {
       orderId,
       amount: feeToCharge * 100,
       currency: "INR",
-      keyId: getLiveRazorpayKeyId(),
+      keyId: liveKeyId,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: "Order creation failed" });
+    console.error("Create order endpoint exception:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.",
+    });
   }
 });
 

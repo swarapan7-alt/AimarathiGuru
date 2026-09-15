@@ -63,16 +63,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [effectiveKeyId, setEffectiveKeyId] = useState<string>(razorpayKeyId || '');
   const [effectiveOrderId, setEffectiveOrderId] = useState<string>(razorpayOrderId || '');
 
-  // Pre-load Razorpay script and ensure live key is available
+  // Pre-load Razorpay script and ensure key is available
   useEffect(() => {
     loadRazorpayScript();
-    if (razorpayKeyId && razorpayKeyId.startsWith('rzp_live')) {
+    if (razorpayKeyId) {
       setEffectiveKeyId(razorpayKeyId);
     } else {
       fetch('/api/payment-settings')
         .then((res) => res.json())
         .then((data) => {
-          if (data.success && data.razorpayKeyId && data.razorpayKeyId.startsWith('rzp_live')) {
+          if (data.success && data.razorpayKeyId) {
             setEffectiveKeyId(data.razorpayKeyId);
           }
         })
@@ -147,16 +147,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [paymentState, activeTempId, studentMobile]);
 
-  // Open Razorpay Payment Flow (Mobile-safe Standard Checkout)
+  // Open Razorpay Payment Flow (Mobile and Desktop Standard Checkout)
   const handleOpenRazorpay = async () => {
     setErrorMessage('');
 
     let keyToUse = effectiveKeyId || razorpayKeyId || '';
-    if (!keyToUse || !keyToUse.startsWith('rzp_live')) {
+    if (!keyToUse) {
       try {
         const res = await fetch('/api/payment-settings');
         const data = await res.json();
-        if (data.success && data.razorpayKeyId && data.razorpayKeyId.startsWith('rzp_live')) {
+        if (data.success && data.razorpayKeyId) {
           keyToUse = data.razorpayKeyId;
           setEffectiveKeyId(data.razorpayKeyId);
         }
@@ -165,13 +165,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }
 
-    if (!keyToUse || !keyToUse.startsWith('rzp_live')) {
-      setErrorMessage('अधिकृत Razorpay Live Key उपलब्ध नाही. कृपया ॲडमिन पॅनेलमधून सेटिंग्ज तपासा.');
+    if (!keyToUse) {
+      setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
       return;
     }
 
     let orderIdToUse = effectiveOrderId || razorpayOrderId || '';
-    if (!orderIdToUse && activeTempId) {
+    if ((!orderIdToUse || !orderIdToUse.startsWith('order_')) && activeTempId) {
       try {
         const ordRes = await fetch('/api/payment/create-order', {
           method: 'POST',
@@ -179,18 +179,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           body: JSON.stringify({ tempId: activeTempId, amount: fee }),
         });
         const ordData = await ordRes.json();
-        if (ordData.success && ordData.orderId) {
+        if (ordData.success && ordData.orderId && ordData.orderId.startsWith('order_')) {
           orderIdToUse = ordData.orderId;
           setEffectiveOrderId(orderIdToUse);
+        } else {
+          setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+          return;
         }
       } catch (e) {
-        console.warn('Fallback order creation error:', e);
+        console.error('Order creation error:', e);
+        setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+        return;
       }
+    }
+
+    if (!orderIdToUse || !orderIdToUse.startsWith('order_')) {
+      setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+      return;
     }
 
     const launched = await launchRazorpayStandardCheckout({
       keyId: keyToUse,
-      orderId: orderIdToUse || undefined,
+      orderId: orderIdToUse,
       amountInPaise: fee * 100,
       name: 'AI Marathi Guru',
       description: 'Live Online Course Registration Fee',
@@ -574,7 +584,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
               >
                 <ShieldCheck className="w-4.5 h-4.5" />
-                <span>PAY ₹{fee} VIA RAZORPAY (अधिकृत पेमेंट करा)</span>
+                <span>PAY ₹{fee}</span>
               </button>
 
               {/* Payment Method Badges */}
