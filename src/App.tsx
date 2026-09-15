@@ -23,6 +23,7 @@ import {
   PaymentSettings,
   WhatsAppSettings,
 } from './types';
+import { loadRazorpayScript, launchRazorpayStandardCheckout, isMobileDevice } from './utils/razorpay';
 
 export default function App() {
   const [pendingFormData, setPendingFormData] = useState<RegistrationFormData | null>(null);
@@ -94,9 +95,10 @@ export default function App() {
     fetchContent();
   };
 
-  // Fetch Site Content from API
+  // Fetch Site Content from API and preload Razorpay Checkout script
   useEffect(() => {
     fetchContent();
+    loadRazorpayScript();
 
     const handleSettingsUpdated = () => {
       fetchContent();
@@ -182,17 +184,82 @@ export default function App() {
           setWhatsappMessage(resData.whatsappMessage || '');
           setShowConfirmationModal(true);
         } else {
-          // STEP 1: Created temporary pending session
-          setPendingSession({
+          // Store pending session for status tracking & retry
+          const sessionData = {
             tempId: resData.tempId,
             registration: resData.pendingRegistration,
             paymentLink: resData.paymentLink,
             razorpayKeyId: resData.razorpayKeyId,
             razorpayOrderId: resData.razorpayOrderId,
-          });
+          };
+          setPendingSession(sessionData);
 
-          // STEP 2: Open Payment Modal
-          setShowPaymentModal(true);
+          // Check if user is on mobile browser
+          const onMobile = isMobileDevice();
+          const hasLiveKey = Boolean(resData.razorpayKeyId && resData.razorpayKeyId.startsWith('rzp_live'));
+
+          if (onMobile && hasLiveKey) {
+            // MOBILE FLOW: User tapped PAY ₹99 -> Launch Razorpay Standard Checkout directly
+            const feeAmount = (resData.amount || resData.courseFee || courseFee || 99) * 100;
+            const launched = await launchRazorpayStandardCheckout({
+              keyId: resData.razorpayKeyId,
+              orderId: resData.razorpayOrderId || undefined,
+              amountInPaise: feeAmount,
+              name: 'AI Marathi Guru',
+              description: 'Live Online Course Registration Fee',
+              prefill: {
+                name: data.fullName,
+                contact: data.mobileNumber,
+                email: data.email || '',
+              },
+              notes: {
+                tempId: resData.tempId,
+                mobileNumber: data.mobileNumber,
+                courseDate: data.courseDateId,
+                slot: data.selectedSlot,
+              },
+              onSuccess: async (payResponse) => {
+                try {
+                  const verifyRes = await fetch('/api/payment/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      tempId: resData.tempId,
+                      studentId: resData.tempId,
+                      mobileNumber: data.mobileNumber,
+                      razorpay_payment_id: payResponse.razorpay_payment_id,
+                      razorpay_order_id: payResponse.razorpay_order_id || resData.razorpayOrderId,
+                      razorpay_signature: payResponse.razorpay_signature,
+                    }),
+                  });
+                  const verifyData = await verifyRes.json();
+                  if (verifyRes.ok && verifyData.success && verifyData.registration) {
+                    handlePaymentSuccess(verifyData.registration, verifyData.whatsappMessage);
+                    return;
+                  }
+                } catch (verifyErr) {
+                  console.error('Mobile payment verification error:', verifyErr);
+                }
+                // Fallback: show modal to track verification
+                setShowPaymentModal(true);
+              },
+              onDismiss: () => {
+                // Student cancelled or dismissed mobile checkout; open PaymentModal for retry
+                setShowPaymentModal(true);
+              },
+              onError: (err) => {
+                console.error('Mobile Razorpay checkout launch error:', err);
+                setShowPaymentModal(true);
+              },
+            });
+
+            if (!launched) {
+              setShowPaymentModal(true);
+            }
+          } else {
+            // DESKTOP FLOW: Preserve existing desktop behavior exactly as is
+            setShowPaymentModal(true);
+          }
         }
       } else {
         alert(resData.error || 'नोंदणी प्रक्रियेत अडचण आली. कृपया पुन्हा प्रयत्न करा.');

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
-  ExternalLink,
   Zap,
   Lock,
   CheckCircle2,
@@ -16,8 +15,11 @@ import {
   Sparkles,
   ArrowRight,
   RefreshCw,
+  CreditCard,
+  ShieldCheck,
 } from 'lucide-react';
 import { RegistrationRecord, RegistrationFormData } from '../types';
+import { launchRazorpayStandardCheckout, loadRazorpayScript } from '../utils/razorpay';
 
 interface PaymentModalProps {
   formData?: RegistrationFormData | RegistrationRecord;
@@ -57,8 +59,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const studentSlot = targetReg?.slotTimeDisplay || '';
   const activeTempId = tempId || targetReg?.tempId || targetReg?.id || '';
 
-  const activePaymentLink =
-    paymentLink && !paymentLink.includes('gAmUJOS0') ? paymentLink.trim() : '';
+  const [activePaymentLink, setActivePaymentLink] = useState<string>(paymentLink || '');
+  const [effectiveKeyId, setEffectiveKeyId] = useState<string>(razorpayKeyId || '');
+  const [effectiveOrderId, setEffectiveOrderId] = useState<string>(razorpayOrderId || '');
+
+  // Pre-load Razorpay script and ensure live key is available
+  useEffect(() => {
+    loadRazorpayScript();
+    if (razorpayKeyId && razorpayKeyId.startsWith('rzp_live')) {
+      setEffectiveKeyId(razorpayKeyId);
+    } else {
+      fetch('/api/payment-settings')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.razorpayKeyId && data.razorpayKeyId.startsWith('rzp_live')) {
+            setEffectiveKeyId(data.razorpayKeyId);
+          }
+        })
+        .catch((err) => console.warn('Payment settings fetch warning:', err));
+    }
+    if (razorpayOrderId) {
+      setEffectiveOrderId(razorpayOrderId);
+    }
+  }, [razorpayKeyId, razorpayOrderId]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -72,7 +95,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         tempId: activeTempId,
         studentId: activeTempId,
         mobileNumber: studentMobile,
-        orderId: razorpayOrderId || '',
+        orderId: effectiveOrderId || razorpayOrderId || '',
       });
 
       const res = await fetch(`/api/payment/status?${queryParams.toString()}`);
@@ -124,126 +147,122 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [paymentState, activeTempId, studentMobile]);
 
-  // Open Razorpay Payment Flow
+  // Open Razorpay Payment Flow (Mobile-safe Standard Checkout)
   const handleOpenRazorpay = async () => {
     setErrorMessage('');
 
-    // Ensure ONLY Live Razorpay Key IDs (starting with rzp_live) are accepted for checkout
-    const isLiveKey = Boolean(
-      razorpayKeyId && razorpayKeyId.startsWith('rzp_live')
-    );
-    const rzpCheckoutAvailable =
-      isLiveKey &&
-      typeof window !== 'undefined' &&
-      typeof (window as any).Razorpay !== 'undefined';
-
-    if (rzpCheckoutAvailable) {
+    let keyToUse = effectiveKeyId || razorpayKeyId || '';
+    if (!keyToUse || !keyToUse.startsWith('rzp_live')) {
       try {
-        const options: any = {
-          key: razorpayKeyId,
-          amount: fee * 100, // ₹99 = 9900 paise
-          currency: 'INR',
-          name: 'AI Marathi Guru',
-          description: 'Live Online Course Registration Fee',
-          order_id: razorpayOrderId || undefined,
-          prefill: {
-            name: studentName,
-            contact: studentMobile,
-            email: targetReg?.email || '',
-          },
-          notes: {
-            tempId: activeTempId,
-            studentId: activeTempId,
-            mobileNumber: studentMobile,
-          },
-          theme: {
-            color: '#E53935',
-          },
-          handler: async function (response: any) {
-            // AUTOMATIC VERIFICATION: Server verifies signature and payment id directly
-            setPaymentState('CHECKING');
-            try {
-              const verifyRes = await fetch('/api/payment/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  tempId: activeTempId,
-                  studentId: activeTempId,
-                  mobileNumber: studentMobile,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id || razorpayOrderId,
-                  razorpay_signature: response.razorpay_signature,
-                }),
-              });
+        const res = await fetch('/api/payment-settings');
+        const data = await res.json();
+        if (data.success && data.razorpayKeyId && data.razorpayKeyId.startsWith('rzp_live')) {
+          keyToUse = data.razorpayKeyId;
+          setEffectiveKeyId(data.razorpayKeyId);
+        }
+      } catch (e) {
+        console.warn('Could not refresh key settings:', e);
+      }
+    }
 
-              const data = await verifyRes.json();
-              if (verifyRes.ok && data.success && data.registration && data.registrationStatus === 'CONFIRMED') {
-                setConfirmedRecord(data.registration);
-                setConfirmedWhatsappMsg(data.whatsappMessage);
-                setPaymentState('SUCCESS');
-                setTimeout(() => {
-                  onPaymentSuccess(data.registration, data.whatsappMessage);
-                }, 1800);
-              } else {
-                setPaymentState('FAILED');
-                setErrorMessage(data.error || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
-              }
-            } catch (e) {
-              setPaymentState('FAILED');
-              setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया पुन्हा प्रयत्न करा.');
-            }
-          },
-          modal: {
-            ondismiss: function () {
-              // Student cancelled / closed payment screen
-              setPaymentState('CANCELLED');
-              fetch('/api/payment/cancel', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tempId: activeTempId, mobileNumber: studentMobile }),
-              }).catch(() => {});
-            },
-          },
-        };
+    if (!keyToUse || !keyToUse.startsWith('rzp_live')) {
+      setErrorMessage('अधिकृत Razorpay Live Key उपलब्ध नाही. कृपया ॲडमिन पॅनेलमधून सेटिंग्ज तपासा.');
+      return;
+    }
 
-        const rzp = new (window as any).Razorpay(options);
-        rzp.on('payment.failed', function (resp: any) {
-          setPaymentState('FAILED');
-          setErrorMessage(resp?.error?.description || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
-          fetch('/api/payment/fail', {
+    let orderIdToUse = effectiveOrderId || razorpayOrderId || '';
+    if (!orderIdToUse && activeTempId) {
+      try {
+        const ordRes = await fetch('/api/payment/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tempId: activeTempId, amount: fee }),
+        });
+        const ordData = await ordRes.json();
+        if (ordData.success && ordData.orderId) {
+          orderIdToUse = ordData.orderId;
+          setEffectiveOrderId(orderIdToUse);
+        }
+      } catch (e) {
+        console.warn('Fallback order creation error:', e);
+      }
+    }
+
+    const launched = await launchRazorpayStandardCheckout({
+      keyId: keyToUse,
+      orderId: orderIdToUse || undefined,
+      amountInPaise: fee * 100,
+      name: 'AI Marathi Guru',
+      description: 'Live Online Course Registration Fee',
+      prefill: {
+        name: studentName,
+        contact: studentMobile,
+        email: targetReg?.email || '',
+      },
+      notes: {
+        tempId: activeTempId,
+        studentId: activeTempId,
+        mobileNumber: studentMobile,
+      },
+      onSuccess: async (response) => {
+        setPaymentState('CHECKING');
+        try {
+          const verifyRes = await fetch('/api/payment/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               tempId: activeTempId,
+              studentId: activeTempId,
               mobileNumber: studentMobile,
-              reason: resp?.error?.description || 'Payment failed',
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id || orderIdToUse,
+              razorpay_signature: response.razorpay_signature,
             }),
-          }).catch(() => {});
-        });
+          });
 
-        rzp.open();
-        return;
-      } catch (checkoutErr) {
-        console.warn('Checkout popup fallback to payment link:', checkoutErr);
-      }
+          const data = await verifyRes.json();
+          if (verifyRes.ok && data.success && data.registration && data.registrationStatus === 'CONFIRMED') {
+            setConfirmedRecord(data.registration);
+            setConfirmedWhatsappMsg(data.whatsappMessage);
+            setPaymentState('SUCCESS');
+            setTimeout(() => {
+              onPaymentSuccess(data.registration, data.whatsappMessage);
+            }, 1800);
+          } else {
+            setPaymentState('FAILED');
+            setErrorMessage(data.error || 'तुमचे पेमेंट पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.');
+          }
+        } catch (e) {
+          setPaymentState('FAILED');
+          setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया पुन्हा प्रयत्न करा.');
+        }
+      },
+      onDismiss: () => {
+        setPaymentState('CANCELLED');
+        fetch('/api/payment/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tempId: activeTempId, mobileNumber: studentMobile }),
+        }).catch(() => {});
+      },
+      onError: (err: any) => {
+        setPaymentState('FAILED');
+        setErrorMessage(err?.description || err?.message || 'पेमेंट सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+        fetch('/api/payment/fail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tempId: activeTempId,
+            mobileNumber: studentMobile,
+            reason: err?.description || 'Payment failed',
+          }),
+        }).catch(() => {});
+      },
+    });
+
+    if (!launched) {
+      setErrorMessage('Razorpay Checkout उघडता आले नाही. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.');
     }
-
-    // Open Official Razorpay Payment Link if configured
-    if (!activePaymentLink || activePaymentLink.includes('gAmUJOS0')) {
-      setErrorMessage(
-        'अधिकृत ₹99 Razorpay पेमेंट लिंक उपलब्ध नाही. कृपया ॲडमिन पॅनेलमधून (Payment Settings) वैध ₹99 पेमेंट लिंक सेट करा किंवा सपोर्टशी संपर्क साधा.'
-      );
-      return;
-    }
-
-    try {
-      window.open(activePaymentLink, '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      window.location.href = activePaymentLink;
-    }
-
-    // Immediately switch to STEP 2: Automatic checking state
-    setPaymentState('CHECKING');
   };
 
   // Retry payment after failure or cancellation
@@ -449,8 +468,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     onClick={handleOpenRazorpay}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>पेमेंट लिंक पुन्हा उघडा</span>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>पेमेंट स्क्रीन पुन्हा उघडा</span>
                   </button>
                   <button
                     type="button"
@@ -552,10 +571,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <button
                 type="button"
                 onClick={handleOpenRazorpay}
-                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
+                className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
               >
-                <ExternalLink className="w-4.5 h-4.5" />
-                <span>OPEN RAZORPAY PAYMENT LINK (₹{fee})</span>
+                <ShieldCheck className="w-4.5 h-4.5" />
+                <span>PAY ₹{fee} VIA RAZORPAY (अधिकृत पेमेंट करा)</span>
               </button>
 
               {/* Payment Method Badges */}
