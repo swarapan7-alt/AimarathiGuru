@@ -107,6 +107,7 @@ export const launchRazorpayStandardCheckout = async (
       name: config.name || 'AI Marathi Guru',
       description: config.description || 'Live Online Course Registration Fee',
       order_id: config.orderId,
+      order: config.orderId,
       prefill: {
         name: config.prefill.name,
         contact: config.prefill.contact,
@@ -129,6 +130,7 @@ export const launchRazorpayStandardCheckout = async (
       },
     };
 
+    console.log('RAZORPAY_OBJECT_CREATED');
     const rzp = new (window as any).Razorpay(options);
 
     rzp.on('payment.failed', function (resp: any) {
@@ -138,7 +140,16 @@ export const launchRazorpayStandardCheckout = async (
       }
     });
 
-    rzp.open();
+    console.log('RAZORPAY_OPEN_CALLED');
+    try {
+      rzp.open();
+    } catch (openErr) {
+      console.error('CRITICAL: rzp.open() execution error:', openErr);
+      if (config.onError) {
+        config.onError(openErr);
+      }
+      return false;
+    }
     return true;
   } catch (err) {
     console.error('Error invoking Razorpay checkout:', err);

@@ -84,6 +84,25 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const activeDates = courseDates.filter((cd) => cd.enabled);
   const defaultDate = activeDates[0] || null;
 
+  const getInitialSlot = (dateRecord: CourseDateRecord | null) => {
+    if (!dateRecord) return { slot: '' as any, display: '' };
+    if (dateRecord.slot1?.enabled && dateRecord.slot1.booked < dateRecord.slot1.capacity) {
+      return {
+        slot: 'slot1' as any,
+        display: `${dateRecord.slot1.startTime} – ${dateRecord.slot1.endTime}`,
+      };
+    }
+    if (dateRecord.slot2?.enabled && dateRecord.slot2.booked < dateRecord.slot2.capacity) {
+      return {
+        slot: 'slot2' as any,
+        display: `${dateRecord.slot2.startTime} – ${dateRecord.slot2.endTime}`,
+      };
+    }
+    return { slot: '' as any, display: '' };
+  };
+
+  const initialSlotInfo = getInitialSlot(defaultDate);
+
   const [formData, setFormData] = useState<RegistrationFormData>({
     fullName: '',
     mobileNumber: '',
@@ -93,8 +112,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     occupation: '',
     courseDateId: defaultDate?.id || '',
     courseDateDisplay: defaultDate?.displayDate || '',
-    selectedSlot: '' as any, // Reset to empty by default so user explicitly chooses
-    slotTimeDisplay: '',
+    selectedSlot: initialSlotInfo.slot,
+    slotTimeDisplay: initialSlotInfo.display,
     agreedToFee: true,
   });
 
@@ -108,12 +127,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       const exists = activeDates.find((d) => d.id === formData.courseDateId);
       if (!formData.courseDateId || !exists) {
         const first = activeDates[0];
+        const slotData = getInitialSlot(first);
         setFormData((prev) => ({
           ...prev,
           courseDateId: first.id,
           courseDateDisplay: first.displayDate,
-          selectedSlot: '' as any,
-          slotTimeDisplay: '',
+          selectedSlot: slotData.slot,
+          slotTimeDisplay: slotData.display,
         }));
       }
     }
@@ -181,20 +201,24 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('PAYMENT_FUNCTION_STARTED');
     setErrorMsg('');
 
     if (!formData.fullName.trim()) {
       setErrorMsg('कृपया तुमचे पूर्ण नाव प्रविष्ट करा.');
+      document.getElementById('fullName')?.focus();
       return;
     }
 
     if (!formData.mobileNumber.trim() || formData.mobileNumber.length < 10) {
       setErrorMsg('कृपया १० अंकी वैध मोबाईल नंबर टाका.');
+      document.getElementById('mobileNumber')?.focus();
       return;
     }
 
     if (!formData.email.trim() || !formData.email.includes('@')) {
       setErrorMsg('कृपया अचूक ईमेल आयडी प्रविष्ट करा.');
+      document.getElementById('email')?.focus();
       return;
     }
 
@@ -642,6 +666,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
+                id="pay-now-btn"
+                onClick={() => {
+                  console.log('PAY_BUTTON_CLICKED');
+                }}
                 disabled={isLoading}
                 className="w-full py-4.5 bg-[#E53935] hover:bg-[#D32F2F] text-white rounded-full font-extrabold text-base sm:text-lg shadow-xl shadow-[#E53935]/25 flex items-center justify-center gap-3 hover:scale-[1.01] transition-all active:scale-95 cursor-pointer font-poppins uppercase tracking-wider"
               >

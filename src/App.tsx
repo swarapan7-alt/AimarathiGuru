@@ -161,10 +161,12 @@ export default function App() {
 
   // STEP 1: Called when user submits registration form
   const handleFormSubmit = async (data: RegistrationFormData) => {
+    console.log('PAYMENT_FUNCTION_STARTED');
     setIsLoading(true);
     setPendingFormData(data);
 
     try {
+      console.log('CREATE_ORDER_REQUEST_STARTED');
       // 1. Create temporary PENDING registration session
       const response = await fetch('/api/register', {
         method: 'POST',
@@ -190,12 +192,31 @@ export default function App() {
             registration: resData.pendingRegistration,
             paymentLink: resData.paymentLink,
             razorpayKeyId: resData.razorpayKeyId,
-            razorpayOrderId: resData.razorpayOrderId,
+            razorpayOrderId: resData.order_id || resData.razorpayOrderId || resData.orderId,
           };
           setPendingSession(sessionData);
 
-          const orderId = resData.razorpayOrderId;
-          const keyId = resData.razorpayKeyId;
+          let orderId = resData.order_id || resData.razorpayOrderId || resData.orderId;
+          let keyId = resData.razorpayKeyId || resData.keyId;
+
+          // If orderId missing, call backend create-order API directly
+          if (!orderId || !orderId.startsWith('order_') || !keyId) {
+            console.log('CREATE_ORDER_REQUEST_STARTED (direct endpoint)');
+            try {
+              const ordRes = await fetch('/api/payment/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tempId: resData.tempId, amount: 99 }),
+              });
+              const ordData = await ordRes.json();
+              if (ordData.success && (ordData.order_id || ordData.orderId)) {
+                orderId = ordData.order_id || ordData.orderId;
+                keyId = keyId || ordData.keyId;
+              }
+            } catch (createErr) {
+              console.error('Failed to create order via /api/payment/create-order:', createErr);
+            }
+          }
 
           // Verify valid order ID and key ID before opening checkout
           if (!orderId || !orderId.startsWith('order_') || !keyId) {

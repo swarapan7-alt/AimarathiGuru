@@ -1193,6 +1193,8 @@ app.post("/api/register", async (req, res) => {
       courseFee: feeToCharge,
       razorpayKeyId: getLiveRazorpayKeyId(),
       razorpayOrderId,
+      order_id: razorpayOrderId,
+      orderId: razorpayOrderId,
       paymentLink:
         db.paymentSettings?.razorpayPaymentLink &&
         !db.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
@@ -1211,7 +1213,7 @@ app.post("/api/register", async (req, res) => {
 });
 
 // 5.1 Create Order specifically for Razorpay Checkout
-app.post("/api/payment/create-order", async (req, res) => {
+app.post(["/api/payment/create-order", "/api/create-order"], async (req, res) => {
   try {
     const { tempId, amount } = req.body;
     const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 99;
@@ -1268,6 +1270,7 @@ app.post("/api/payment/create-order", async (req, res) => {
 
     return res.json({
       success: true,
+      order_id: orderId,
       orderId,
       amount: feeToCharge * 100,
       currency: "INR",

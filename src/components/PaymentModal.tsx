@@ -149,6 +149,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Open Razorpay Payment Flow (Mobile and Desktop Standard Checkout)
   const handleOpenRazorpay = async () => {
+    console.log('PAYMENT_FUNCTION_STARTED');
     setErrorMessage('');
 
     let keyToUse = effectiveKeyId || razorpayKeyId || '';
@@ -173,15 +174,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     let orderIdToUse = effectiveOrderId || razorpayOrderId || '';
     if ((!orderIdToUse || !orderIdToUse.startsWith('order_')) && activeTempId) {
       try {
+        console.log('CREATE_ORDER_REQUEST_STARTED');
         const ordRes = await fetch('/api/payment/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tempId: activeTempId, amount: fee }),
         });
         const ordData = await ordRes.json();
-        if (ordData.success && ordData.orderId && ordData.orderId.startsWith('order_')) {
-          orderIdToUse = ordData.orderId;
+        const newOrderId = ordData.order_id || ordData.orderId;
+        if (ordData.success && newOrderId && newOrderId.startsWith('order_')) {
+          orderIdToUse = newOrderId;
           setEffectiveOrderId(orderIdToUse);
+          if (ordData.keyId) {
+            setEffectiveKeyId(ordData.keyId);
+            keyToUse = ordData.keyId;
+          }
         } else {
           setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
           return;
@@ -277,8 +284,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Retry payment after failure or cancellation
   const handleRetryPayment = () => {
+    console.log('PAY_BUTTON_CLICKED');
     setPaymentState('IDLE');
     setErrorMessage('');
+    handleOpenRazorpay();
   };
 
   // Cancel / Dismiss Modal
@@ -580,7 +589,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               
               <button
                 type="button"
-                onClick={handleOpenRazorpay}
+                id="modal-pay-razorpay-btn"
+                onClick={() => {
+                  console.log('PAY_BUTTON_CLICKED');
+                  handleOpenRazorpay();
+                }}
                 className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
               >
                 <ShieldCheck className="w-4.5 h-4.5" />
