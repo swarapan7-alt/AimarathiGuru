@@ -123,13 +123,13 @@ function verifyAdminToken(tokenString: string): {
 // Razorpay Key Configuration
 // Resolves configured Razorpay Key ID from database payment settings or environment
 function getLiveRazorpayKeyId(): string {
-  const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
-  if (dbKey) {
-    return dbKey;
-  }
   const envKey = (process.env.RAZORPAY_KEY_ID || "").trim();
   if (envKey) {
     return envKey;
+  }
+  const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
+  if (dbKey) {
+    return dbKey;
   }
   return "";
 }
@@ -550,10 +550,7 @@ function loadDB(): DBStructure {
           : "",
       paymentMode: existingData?.paymentSettings?.paymentMode || "both",
       razorpayKeyId:
-        getLiveRazorpayKeyId() ||
-        (existingData?.paymentSettings?.razorpayKeyId?.startsWith("rzp_live_")
-          ? existingData.paymentSettings.razorpayKeyId
-          : ""),
+        existingData?.paymentSettings?.razorpayKeyId?.trim() || "",
     },
     whatsappSettings: {
       communityLink:
@@ -1215,8 +1212,9 @@ app.post("/api/register", async (req, res) => {
 // 5.1 Create Order specifically for Razorpay Checkout
 app.post(["/api/payment/create-order", "/api/create-order"], async (req, res) => {
   try {
-    const { tempId, amount } = req.body;
-    const feeToCharge = Number(amount) || db.paymentSettings.courseFee || 99;
+    const { tempId } = req.body;
+    // Server enforces ₹99 fee - amount is never controlled by browser
+    const feeToCharge = db?.paymentSettings?.courseFee || 99;
 
     let orderId = "";
     const liveKeyId = getLiveRazorpayKeyId();

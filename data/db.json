@@ -206,7 +206,7 @@
     "originalFee": 999,
     "razorpayPaymentLink": "",
     "paymentMode": "both",
-    "razorpayKeyId": "rzp_test_TNJSYVd2RrMPLA"
+    "razorpayKeyId": ""
   },
   "whatsappSettings": {
     "communityLink": "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",

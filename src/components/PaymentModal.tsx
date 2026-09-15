@@ -149,7 +149,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Open Razorpay Payment Flow (Mobile and Desktop Standard Checkout)
   const handleOpenRazorpay = async () => {
-    console.log('PAYMENT_FUNCTION_STARTED');
+    console.log('PAY_BUTTON_CLICKED');
+    console.log('CREATE_ORDER_STARTED');
     setErrorMessage('');
 
     let keyToUse = effectiveKeyId || razorpayKeyId || '';
@@ -174,11 +175,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     let orderIdToUse = effectiveOrderId || razorpayOrderId || '';
     if ((!orderIdToUse || !orderIdToUse.startsWith('order_')) && activeTempId) {
       try {
-        console.log('CREATE_ORDER_REQUEST_STARTED');
         const ordRes = await fetch('/api/payment/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tempId: activeTempId, amount: fee }),
+          body: JSON.stringify({ tempId: activeTempId }),
         });
         const ordData = await ordRes.json();
         const newOrderId = ordData.order_id || ordData.orderId;
@@ -189,6 +189,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             setEffectiveKeyId(ordData.keyId);
             keyToUse = ordData.keyId;
           }
+          console.log('CREATE_ORDER_SUCCESS');
+          console.log('ORDER_ID_RECEIVED', newOrderId);
         } else {
           setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
           return;
@@ -198,6 +200,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
         return;
       }
+    } else if (orderIdToUse) {
+      console.log('CREATE_ORDER_SUCCESS');
+      console.log('ORDER_ID_RECEIVED', orderIdToUse);
     }
 
     if (!orderIdToUse || !orderIdToUse.startsWith('order_')) {

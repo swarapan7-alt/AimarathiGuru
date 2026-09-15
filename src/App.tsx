@@ -161,13 +161,13 @@ export default function App() {
 
   // STEP 1: Called when user submits registration form
   const handleFormSubmit = async (data: RegistrationFormData) => {
-    console.log('PAYMENT_FUNCTION_STARTED');
+    console.log('PAY_BUTTON_CLICKED');
+    console.log('CREATE_ORDER_STARTED');
     setIsLoading(true);
     setPendingFormData(data);
 
     try {
-      console.log('CREATE_ORDER_REQUEST_STARTED');
-      // 1. Create temporary PENDING registration session
+      // 1. Create temporary PENDING registration session & Razorpay order
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,46 +185,52 @@ export default function App() {
           setCurrentRegistration(resData.registration);
           setWhatsappMessage(resData.whatsappMessage || '');
           setShowConfirmationModal(true);
-        } else {
-          // Store pending session for tracking & retry
-          const sessionData = {
-            tempId: resData.tempId,
-            registration: resData.pendingRegistration,
-            paymentLink: resData.paymentLink,
-            razorpayKeyId: resData.razorpayKeyId,
-            razorpayOrderId: resData.order_id || resData.razorpayOrderId || resData.orderId,
-          };
-          setPendingSession(sessionData);
+          setIsLoading(false);
+          return;
+        }
 
-          let orderId = resData.order_id || resData.razorpayOrderId || resData.orderId;
-          let keyId = resData.razorpayKeyId || resData.keyId;
+        let orderId = resData.order_id || resData.razorpayOrderId || resData.orderId;
+        let keyId = resData.razorpayKeyId || resData.keyId;
 
-          // If orderId missing, call backend create-order API directly
-          if (!orderId || !orderId.startsWith('order_') || !keyId) {
-            console.log('CREATE_ORDER_REQUEST_STARTED (direct endpoint)');
-            try {
-              const ordRes = await fetch('/api/payment/create-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tempId: resData.tempId, amount: 99 }),
-              });
-              const ordData = await ordRes.json();
-              if (ordData.success && (ordData.order_id || ordData.orderId)) {
-                orderId = ordData.order_id || ordData.orderId;
-                keyId = keyId || ordData.keyId;
-              }
-            } catch (createErr) {
-              console.error('Failed to create order via /api/payment/create-order:', createErr);
+        // If orderId missing, call backend create-order API directly
+        if (!orderId || !orderId.startsWith('order_') || !keyId) {
+          try {
+            const ordRes = await fetch('/api/payment/create-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tempId: resData.tempId }),
+            });
+            const ordData = await ordRes.json();
+            if (ordData.success && (ordData.order_id || ordData.orderId)) {
+              orderId = ordData.order_id || ordData.orderId;
+              keyId = keyId || ordData.keyId;
             }
+          } catch (createErr) {
+            console.error('Failed to create order via /api/payment/create-order:', createErr);
           }
+        }
 
-          // Verify valid order ID and key ID before opening checkout
-          if (!orderId || !orderId.startsWith('order_') || !keyId) {
-            console.error('Razorpay order creation failed or invalid order ID:', resData);
-            alert('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
-            setShowPaymentModal(true);
-            return;
-          }
+        // Verify valid order ID and key ID before opening checkout
+        if (!orderId || !orderId.startsWith('order_') || !keyId) {
+          console.error('Razorpay order creation failed or invalid order ID:', resData);
+          alert('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+          setIsLoading(false);
+          setShowPaymentModal(true);
+          return;
+        }
+
+        console.log('CREATE_ORDER_SUCCESS');
+        console.log('ORDER_ID_RECEIVED', orderId);
+
+        // Store pending session for tracking & retry
+        const sessionData = {
+          tempId: resData.tempId,
+          registration: resData.pendingRegistration,
+          paymentLink: resData.paymentLink,
+          razorpayKeyId: keyId,
+          razorpayOrderId: orderId,
+        };
+        setPendingSession(sessionData);
 
           // ONE UNIFIED RAZORPAY STANDARD CHECKOUT FLOW FOR BOTH MOBILE AND DESKTOP:
           // Mobile -> naturally adapts to UPI Intent (PhonePe/Google Pay/Paytm/BHIM)
@@ -249,6 +255,7 @@ export default function App() {
               slot: data.selectedSlot,
             },
             onSuccess: async (payResponse) => {
+              setIsLoading(false);
               try {
                 const verifyRes = await fetch('/api/payment/verify', {
                   method: 'POST',
@@ -274,26 +281,30 @@ export default function App() {
               setShowPaymentModal(true);
             },
             onDismiss: () => {
+              setIsLoading(false);
               // Student cancelled or dismissed checkout; show PaymentModal for retry
               setShowPaymentModal(true);
             },
             onError: (err) => {
+              setIsLoading(false);
               console.error('Razorpay checkout error:', err);
               alert('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
               setShowPaymentModal(true);
             },
           });
 
+          setIsLoading(false);
           if (!launched) {
             setShowPaymentModal(true);
           }
-        }
       } else {
+        setIsLoading(false);
         alert(resData.error || 'नोंदणी प्रक्रियेत अडचण आली. कृपया पुन्हा प्रयत्न करा.');
       }
     } catch (err) {
+      setIsLoading(false);
       console.error('Registration submit error:', err);
-      alert('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया पुन्हा प्रयत्न करा.');
+      alert('तांत्रिक अडचण आली. कृपया पुन्हा प्रयत्न करा.');
     } finally {
       setIsLoading(false);
     }

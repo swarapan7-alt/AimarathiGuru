@@ -662,6 +662,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </label>
             </div>
 
+            {/* Error message directly above submit button */}
+            {errorMsg && (
+              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-300 text-[#E53935] text-xs sm:text-sm font-bold flex items-center gap-2 animate-shake">
+                <AlertCircle className="w-5 h-5 shrink-0 text-[#E53935]" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             {/* Submit Button */}
             <div className="pt-2">
               <button
@@ -671,12 +679,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   console.log('PAY_BUTTON_CLICKED');
                 }}
                 disabled={isLoading}
-                className="w-full py-4.5 bg-[#E53935] hover:bg-[#D32F2F] text-white rounded-full font-extrabold text-base sm:text-lg shadow-xl shadow-[#E53935]/25 flex items-center justify-center gap-3 hover:scale-[1.01] transition-all active:scale-95 cursor-pointer font-poppins uppercase tracking-wider"
+                className="w-full py-4.5 bg-[#E53935] hover:bg-[#D32F2F] text-white rounded-full font-extrabold text-base sm:text-lg shadow-xl shadow-[#E53935]/25 flex items-center justify-center gap-3 hover:scale-[1.01] transition-all active:scale-95 cursor-pointer font-poppins uppercase tracking-wider disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Razorpay पेमेंट लोड होत आहे...</span>
+                    <span>Starting secure payment (सुरक्षित पेमेंट सुरू होत आहे...)...</span>
                   </span>
                 ) : (
                   <>

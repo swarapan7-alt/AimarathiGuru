@@ -32,10 +32,18 @@ export const loadRazorpayScript = (): Promise<boolean> => {
       }
       existingScript.addEventListener('load', () => resolve(true), { once: true });
       existingScript.addEventListener('error', () => resolve(false), { once: true });
-      // Fallback check after 1.5s
-      setTimeout(() => {
-        resolve(typeof (window as any).Razorpay !== 'undefined');
-      }, 1500);
+      // Fast polling fallback check
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (typeof (window as any).Razorpay !== 'undefined') {
+          clearInterval(interval);
+          resolve(true);
+        } else if (attempts > 30) {
+          clearInterval(interval);
+          resolve(false);
+        }
+      }, 50);
       return;
     }
 
@@ -130,7 +138,7 @@ export const launchRazorpayStandardCheckout = async (
       },
     };
 
-    console.log('RAZORPAY_OBJECT_CREATED');
+    console.log('RAZORPAY_INITIALIZED');
     const rzp = new (window as any).Razorpay(options);
 
     rzp.on('payment.failed', function (resp: any) {
