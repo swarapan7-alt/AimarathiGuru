@@ -32,7 +32,6 @@ export default function App() {
   const [currentRegistration, setCurrentRegistration] = useState<RegistrationRecord | null>(null);
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [communityLink, setCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
-  const [paymentLink, setPaymentLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Dynamic Content loaded from backend with persistent instant local storage cache
@@ -128,11 +127,6 @@ export default function App() {
         if (data.paymentSettings) {
           setPaymentSettings(data.paymentSettings);
           if (data.paymentSettings.courseFee) setCourseFee(data.paymentSettings.courseFee);
-          if (data.paymentSettings.razorpayPaymentLink && !data.paymentSettings.razorpayPaymentLink.includes('gAmUJOS0')) {
-            setPaymentLink(data.paymentSettings.razorpayPaymentLink);
-          } else {
-            setPaymentLink('');
-          }
         }
         if (data.whatsappSettings) {
           setWhatsappSettings(data.whatsappSettings);
@@ -147,7 +141,6 @@ export default function App() {
   const [pendingSession, setPendingSession] = useState<{
     tempId?: string;
     registration?: RegistrationRecord;
-    paymentLink?: string;
     razorpayKeyId?: string;
     razorpayOrderId?: string;
   } | null>(null);
@@ -177,7 +170,6 @@ export default function App() {
       const resData = await response.json();
 
       if (response.ok && resData.success) {
-        if (resData.paymentLink) setPaymentLink(resData.paymentLink);
         if (resData.communityLink) setCommunityLink(resData.communityLink);
 
         if (resData.alreadyRegistered && resData.registration && resData.paymentStatus === 'PAID') {
@@ -226,7 +218,6 @@ export default function App() {
         const sessionData = {
           tempId: resData.tempId,
           registration: resData.pendingRegistration,
-          paymentLink: resData.paymentLink,
           razorpayKeyId: keyId,
           razorpayOrderId: orderId,
         };
@@ -398,7 +389,6 @@ export default function App() {
           }}
           onPaymentSuccess={handlePaymentSuccess}
           fee={courseFee}
-          paymentLink={pendingSession?.paymentLink || paymentLink}
         />
       )}
 

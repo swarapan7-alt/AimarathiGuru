@@ -44,7 +44,6 @@ export const AdminWebsiteSettingsTab: React.FC<
   const [whatsappCommunityLink, setWhatsappCommunityLink] = useState(
     "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
   );
-  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
   const [googleMeetLink, setGoogleMeetLink] = useState(
     "https://meet.google.com/amg-live-session",
   );
@@ -109,8 +108,6 @@ export const AdminWebsiteSettingsTab: React.FC<
 
         if (data.whatsappSettings?.communityLink)
           setWhatsappCommunityLink(data.whatsappSettings.communityLink);
-        const pLink = data.paymentSettings?.razorpayPaymentLink;
-        setRazorpayPaymentLink(pLink && !pLink.includes("gAmUJOS0") ? pLink : "");
         if (data.liveSessionSettings?.googleMeetLink)
           setGoogleMeetLink(data.liveSessionSettings.googleMeetLink);
       }
@@ -265,7 +262,6 @@ export const AdminWebsiteSettingsTab: React.FC<
             selectedFilePreview ||
             (photoToSave.startsWith("data:") ? photoToSave : undefined),
           whatsappCommunityLink,
-          razorpayPaymentLink,
           googleMeetLink,
           instagramLink,
           youtubeLink,
@@ -655,18 +651,6 @@ export const AdminWebsiteSettingsTab: React.FC<
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
-                Razorpay Payment Link
-              </label>
-              <input
-                type="url"
-                required
-                value={razorpayPaymentLink}
-                onChange={(e) => setRazorpayPaymentLink(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-lg font-mono"
-              />
-            </div>
-            <div className="md:col-span-2">
               <label className="text-[11px] font-bold text-slate-700 block mb-0.5">
                 Default Google Meet Link (Live Session)
               </label>

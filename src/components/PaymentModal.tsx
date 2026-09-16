@@ -30,7 +30,6 @@ interface PaymentModalProps {
   onClose: () => void;
   onPaymentSuccess: (confirmedRegistration: RegistrationRecord, whatsappMessage?: string) => void;
   fee?: number;
-  paymentLink?: string;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -42,7 +41,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onPaymentSuccess,
   fee = 99,
-  paymentLink = '',
 }) => {
   const [paymentState, setPaymentState] = useState<
     'IDLE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
@@ -59,7 +57,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const studentSlot = targetReg?.slotTimeDisplay || '';
   const activeTempId = tempId || targetReg?.tempId || targetReg?.id || '';
 
-  const [activePaymentLink, setActivePaymentLink] = useState<string>(paymentLink || '');
   const [effectiveKeyId, setEffectiveKeyId] = useState<string>(razorpayKeyId || '');
   const [effectiveOrderId, setEffectiveOrderId] = useState<string>(razorpayOrderId || '');
 
@@ -584,7 +581,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <span>STEP 1: अधिकृत पेमेंट पूर्ण करा</span>
                 </div>
                 <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full font-poppins">
-                  SECURE LINK
+                  SECURE CHECKOUT
                 </span>
               </div>
               

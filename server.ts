@@ -123,15 +123,18 @@ function verifyAdminToken(tokenString: string): {
 // Razorpay Key Configuration
 // Resolves configured Razorpay Key ID from database payment settings or environment
 function getLiveRazorpayKeyId(): string {
+  const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
+  if (dbKey && dbKey.startsWith("rzp_live_")) {
+    return dbKey;
+  }
   const envKey = (process.env.RAZORPAY_KEY_ID || "").trim();
-  if (envKey) {
+  if (envKey && envKey.startsWith("rzp_live_")) {
     return envKey;
   }
-  const dbKey = (db?.paymentSettings?.razorpayKeyId || "").trim();
   if (dbKey) {
     return dbKey;
   }
-  return "";
+  return envKey || "";
 }
 
 function getLiveRazorpayKeySecret(): string {
@@ -321,9 +324,8 @@ interface DBStructure {
   paymentSettings: {
     courseFee: number;
     originalFee: number;
-    razorpayPaymentLink: string;
-    paymentMode: "payment_link" | "razorpay_modal" | "both";
     razorpayKeyId: string;
+    gateway?: string;
   };
   whatsappSettings: {
     communityLink: string;
@@ -543,14 +545,9 @@ function loadDB(): DBStructure {
         existingData?.paymentSettings?.originalFee ||
         existingData?.siteSettings?.oldPrice ||
         999,
-      razorpayPaymentLink:
-        existingData?.paymentSettings?.razorpayPaymentLink &&
-        !existingData.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
-          ? existingData.paymentSettings.razorpayPaymentLink
-          : "",
-      paymentMode: existingData?.paymentSettings?.paymentMode || "both",
       razorpayKeyId:
         existingData?.paymentSettings?.razorpayKeyId?.trim() || "",
+      gateway: "Razorpay Standard Checkout",
     },
     whatsappSettings: {
       communityLink:
@@ -751,11 +748,7 @@ function formatMessageTemplate(
     student?.meetLink ||
     db.liveSessionSettings?.googleMeetLink ||
     "https://meet.google.com/amg-live-session";
-  const paymentLink =
-    db.paymentSettings?.razorpayPaymentLink &&
-    !db.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
-      ? db.paymentSettings.razorpayPaymentLink
-      : "";
+  const paymentLink = "https://aimarathiguru.com/#register";
 
   // 1. Student Name replacements
   msg = msg.replace(/{Student Name}/gi, studentName);
@@ -946,9 +939,10 @@ app.get("/api/content", (req, res) => {
     paymentSettings: {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
-      razorpayPaymentLink: db.paymentSettings.razorpayPaymentLink,
-      paymentMode: db.paymentSettings.paymentMode,
-      razorpayKeyId: db.paymentSettings.razorpayKeyId,
+      gateway: "Razorpay Standard Checkout",
+      gatewayStatus: "ACTIVE",
+      liveMode: "ACTIVE",
+      razorpayKeyId: getLiveRazorpayKeyId(),
     },
     whatsappSettings: db.whatsappSettings,
     communication: {
@@ -994,8 +988,9 @@ app.get("/api/payment-settings", (req, res) => {
     success: true,
     courseFee: db.paymentSettings.courseFee,
     originalFee: db.paymentSettings.originalFee,
-    razorpayPaymentLink: db.paymentSettings.razorpayPaymentLink,
-    paymentMode: db.paymentSettings.paymentMode,
+    gateway: "Razorpay Standard Checkout",
+    gatewayStatus: "ACTIVE",
+    liveMode: "ACTIVE",
     razorpayKeyId: getLiveRazorpayKeyId(),
   });
 });
@@ -1192,11 +1187,6 @@ app.post("/api/register", async (req, res) => {
       razorpayOrderId,
       order_id: razorpayOrderId,
       orderId: razorpayOrderId,
-      paymentLink:
-        db.paymentSettings?.razorpayPaymentLink &&
-        !db.paymentSettings.razorpayPaymentLink.includes("gAmUJOS0")
-          ? db.paymentSettings.razorpayPaymentLink
-          : "",
       pendingRegistration: pendingStudent,
     });
   } catch (err: any) {
@@ -1989,7 +1979,6 @@ app.get("/api/lookup/:query", (req, res) => {
     registration: student,
     whatsappMessage: formattedMsg,
     communityLink: db.whatsappSettings.communityLink,
-    paymentLink: db.paymentSettings.razorpayPaymentLink,
   });
 });
 
@@ -2411,24 +2400,16 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   const {
     courseFee,
     originalFee,
-    razorpayPaymentLink,
-    paymentMode,
     razorpayKeyId,
   } = req.body;
 
-  if (courseFee !== undefined) {
+  if (courseFee !== undefined && !isNaN(Number(courseFee))) {
     db.paymentSettings.courseFee = Number(courseFee);
     db.siteSettings.courseFee = Number(courseFee);
   }
-  if (originalFee !== undefined) {
+  if (originalFee !== undefined && !isNaN(Number(originalFee))) {
     db.paymentSettings.originalFee = Number(originalFee);
     db.siteSettings.oldPrice = Number(originalFee);
-  }
-  if (razorpayPaymentLink !== undefined) {
-    db.paymentSettings.razorpayPaymentLink = String(razorpayPaymentLink).trim();
-  }
-  if (paymentMode !== undefined) {
-    db.paymentSettings.paymentMode = paymentMode;
   }
   if (razorpayKeyId !== undefined) {
     const cleanKey = String(razorpayKeyId).trim();
@@ -2441,13 +2422,20 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   addAuditLog(
     (req as any).admin.username,
     "UPDATE_PAYMENT_SETTINGS",
-    `Updated Payment Settings: Fee ₹${db.paymentSettings.courseFee}, Link: ${db.paymentSettings.razorpayPaymentLink}`,
+    `Updated Payment Settings: Course Fee ₹${db.paymentSettings.courseFee}, MRP ₹${db.paymentSettings.originalFee}`,
   );
 
   res.json({
     success: true,
     message: "पेमेंट सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.",
-    paymentSettings: db.paymentSettings,
+    paymentSettings: {
+      courseFee: db.paymentSettings.courseFee,
+      originalFee: db.paymentSettings.originalFee,
+      gateway: "Razorpay Standard Checkout",
+      gatewayStatus: "ACTIVE",
+      liveMode: "ACTIVE",
+      razorpayKeyId: getLiveRazorpayKeyId(),
+    },
   });
 });
 
@@ -2604,7 +2592,6 @@ app.put("/api/admin/website-settings", authenticateAdmin, (req, res) => {
     instructorPhotoUrl,
     imageBase64,
     whatsappCommunityLink,
-    razorpayPaymentLink,
     googleMeetLink,
     instagramLink,
     youtubeLink,
@@ -2687,9 +2674,6 @@ app.put("/api/admin/website-settings", authenticateAdmin, (req, res) => {
     db.communicationSettings.communityLink = String(
       whatsappCommunityLink,
     ).trim();
-  }
-  if (razorpayPaymentLink !== undefined) {
-    db.paymentSettings.razorpayPaymentLink = String(razorpayPaymentLink).trim();
   }
   if (googleMeetLink !== undefined) {
     db.liveSessionSettings.googleMeetLink = String(googleMeetLink).trim();

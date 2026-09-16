@@ -85,10 +85,10 @@ export interface AdminUser {
 export interface PaymentSettings {
   courseFee: number;
   originalFee: number;
-  razorpayPaymentLink: string;
-  paymentMode?: 'payment_link' | 'razorpay_modal' | 'both';
+  gateway?: string;
+  gatewayStatus?: string;
+  liveMode?: string;
   razorpayKeyId?: string;
-  isLinkActive?: boolean;
 }
 
 export interface WhatsAppSettings {

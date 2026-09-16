@@ -113,7 +113,7 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({ onRefresh })
     .replace(/{whatsapp_link}/gi, 'https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO')
     .replace(/{meet_link}/gi, 'https://meet.google.com/amg-live-session')
     .replace(/{registration_id}/gi, 'AMG-2026-00042')
-    .replace(/{payment_link}/gi, 'https://rzp.io/l/ai-marathi-guru');
+    .replace(/{payment_link}/gi, 'https://aimarathiguru.com/#register');
 
   const templateTabs: Array<{ id: keyof MessageTemplates; title: string; desc: string }> = [
     { id: 'paymentSuccess', title: 'Payment Success', desc: 'पेमेंट पूर्ण झाल्यावर पाठवला जाणारा मेसेज' },
