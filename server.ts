@@ -552,19 +552,19 @@ function loadDB(): DBStructure {
     ],
     paymentSettings: {
       courseFee:
-        existingData?.paymentSettings?.courseFee ||
-        existingData?.siteSettings?.courseFee ||
+        existingData?.paymentSettings?.courseFee ??
+        existingData?.siteSettings?.courseFee ??
         99,
       originalFee:
-        existingData?.paymentSettings?.originalFee ||
-        existingData?.siteSettings?.oldPrice ||
+        existingData?.paymentSettings?.originalFee ??
+        existingData?.siteSettings?.oldPrice ??
         999,
       razorpayKeyId:
         existingData?.paymentSettings?.razorpayKeyId?.trim() || "",
       paymentLink:
         existingData?.paymentSettings?.paymentLink?.trim() ||
         DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Payment Link",
+      gateway: "Razorpay Standard Checkout",
     },
     whatsappSettings: {
       communityLink:
@@ -617,8 +617,14 @@ function loadDB(): DBStructure {
     },
     siteSettings: {
       courseName: existingData?.siteSettings?.courseName || "AI Marathi Guru",
-      courseFee: existingData?.siteSettings?.courseFee || 99,
-      oldPrice: existingData?.siteSettings?.oldPrice || 999,
+      courseFee:
+        existingData?.paymentSettings?.courseFee ??
+        existingData?.siteSettings?.courseFee ??
+        99,
+      oldPrice:
+        existingData?.paymentSettings?.originalFee ??
+        existingData?.siteSettings?.oldPrice ??
+        999,
       heroHeading:
         existingData?.siteSettings?.heroHeading || "आता AI मराठीत शिका!",
       heroSubtitle:
@@ -958,7 +964,7 @@ app.get("/api/content", (req, res) => {
       originalFee: db.paymentSettings.originalFee,
       paymentLink:
         db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Payment Link",
+      gateway: "Razorpay Standard Checkout",
       gatewayStatus: "ACTIVE",
       liveMode: "ACTIVE",
       razorpayKeyId: getLiveRazorpayKeyId(),
@@ -1009,7 +1015,7 @@ app.get("/api/payment-settings", (req, res) => {
     originalFee: db.paymentSettings.originalFee,
     paymentLink:
       db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-    gateway: "Razorpay Payment Link",
+    gateway: "Razorpay Standard Checkout",
     gatewayStatus: "ACTIVE",
     liveMode: "ACTIVE",
     razorpayKeyId: getLiveRazorpayKeyId(),
@@ -1176,10 +1182,52 @@ app.post("/api/register", async (req, res) => {
       };
       db.students.unshift(pendingStudent);
     }
+
+    // Create Razorpay Order on server side before returning for Standard Checkout
+    let razorpayOrderId = "";
+    const liveKeyId = getLiveRazorpayKeyId();
+    const liveKeySecret = getLiveRazorpayKeySecret();
+
+    if (liveKeyId && liveKeySecret) {
+      try {
+        const authHeader =
+          "Basic " +
+          Buffer.from(`${liveKeyId}:${liveKeySecret}`).toString("base64");
+        const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+          method: "POST",
+          headers: {
+            Authorization: authHeader,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: feeToCharge * 100,
+            currency: "INR",
+            receipt: `rcpt_${pendingStudent.tempId || Date.now()}`,
+            notes: {
+              tempId: pendingStudent.tempId || pendingStudent.id,
+              mobileNumber: cleanMobile,
+              fullName: String(fullName || "").trim(),
+            },
+          }),
+        });
+
+        if (orderRes.ok) {
+          const orderData: any = await orderRes.json();
+          razorpayOrderId = orderData.id || "";
+          pendingStudent.orderId = razorpayOrderId;
+        } else {
+          const errText = await orderRes.text();
+          console.error("Razorpay order creation error in /api/register:", orderRes.status, errText);
+        }
+      } catch (orderErr) {
+        console.error("Exception calling Razorpay Orders API in /api/register:", orderErr);
+      }
+    }
+
     saveDB(db);
 
     console.log(
-      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | Link: ${paymentLinkUrl}`,
+      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | OrderID: ${razorpayOrderId} | Fee: ₹${feeToCharge}`,
     );
 
     return res.json({
@@ -1187,11 +1235,15 @@ app.post("/api/register", async (req, res) => {
       tempId: pendingStudent.tempId || pendingStudent.id,
       registrationStatus: "PENDING",
       paymentStatus: "PENDING",
-      amount: feeToCharge,
+      amount: feeToCharge * 100,
       courseFee: feeToCharge,
+      orderId: razorpayOrderId,
+      order_id: razorpayOrderId,
+      keyId: liveKeyId,
       paymentUrl: paymentLinkUrl,
       paymentLink: paymentLinkUrl,
       pendingRegistration: pendingStudent,
+      communityLink: db.whatsappSettings.communityLink,
     });
   } catch (err: any) {
     console.error("Registration Error:", err);
@@ -1579,6 +1631,7 @@ app.post("/api/payment/cancel", (req, res) => {
     return res.json({
       success: true,
       paymentStatus: "CANCELLED",
+      registrationStatus: "PENDING",
       message: "Payment cancelled.",
     });
   } catch (err: any) {
@@ -2632,7 +2685,16 @@ app.delete("/api/admin/course-dates/:id", authenticateAdmin, (req, res) => {
 // 13. Payment Settings Endpoints
 app.get("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   res.json({
-    paymentSettings: db.paymentSettings,
+    success: true,
+    paymentSettings: {
+      courseFee: db.paymentSettings.courseFee,
+      originalFee: db.paymentSettings.originalFee,
+      paymentLink: db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: "Razorpay Standard Checkout",
+      gatewayStatus: "ACTIVE",
+      liveMode: "ACTIVE",
+      razorpayKeyId: getLiveRazorpayKeyId(),
+    },
   });
 });
 
@@ -2640,17 +2702,21 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   const {
     courseFee,
     originalFee,
+    oldPrice,
     paymentLink,
     razorpayKeyId,
   } = req.body;
 
-  if (courseFee !== undefined && !isNaN(Number(courseFee))) {
-    db.paymentSettings.courseFee = Number(courseFee);
-    db.siteSettings.courseFee = Number(courseFee);
+  if (courseFee !== undefined && !isNaN(Number(courseFee)) && Number(courseFee) > 0) {
+    const feeNum = Number(courseFee);
+    db.paymentSettings.courseFee = feeNum;
+    db.siteSettings.courseFee = feeNum;
   }
-  if (originalFee !== undefined && !isNaN(Number(originalFee))) {
-    db.paymentSettings.originalFee = Number(originalFee);
-    db.siteSettings.oldPrice = Number(originalFee);
+  const resolvedOldFee = originalFee !== undefined ? originalFee : oldPrice;
+  if (resolvedOldFee !== undefined && !isNaN(Number(resolvedOldFee)) && Number(resolvedOldFee) > 0) {
+    const oldNum = Number(resolvedOldFee);
+    db.paymentSettings.originalFee = oldNum;
+    db.siteSettings.oldPrice = oldNum;
   }
   if (paymentLink !== undefined) {
     const trimmedLink = String(paymentLink).trim();
@@ -2658,9 +2724,7 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   }
   if (razorpayKeyId !== undefined) {
     const cleanKey = String(razorpayKeyId).trim();
-    if (cleanKey.startsWith("rzp_live_") || cleanKey === "") {
-      db.paymentSettings.razorpayKeyId = cleanKey;
-    }
+    db.paymentSettings.razorpayKeyId = cleanKey;
   }
 
   saveDB(db);
@@ -2677,7 +2741,7 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
       paymentLink: db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Payment Link",
+      gateway: "Razorpay Standard Checkout",
       gatewayStatus: "ACTIVE",
       liveMode: "ACTIVE",
       razorpayKeyId: getLiveRazorpayKeyId(),
@@ -2812,6 +2876,8 @@ app.get("/api/admin/website-settings", authenticateAdmin, (req, res) => {
   res.json({
     siteSettings: {
       ...db.siteSettings,
+      courseFee: db.paymentSettings.courseFee,
+      oldPrice: db.paymentSettings.originalFee,
       instructor_photo_url: currentPhoto,
       instructorPhoto: currentPhoto,
       instructorPhotoUrl: currentPhoto,
@@ -2846,13 +2912,15 @@ app.put("/api/admin/website-settings", authenticateAdmin, (req, res) => {
   } = req.body;
 
   if (courseName !== undefined) db.siteSettings.courseName = courseName;
-  if (courseFee !== undefined) {
-    db.siteSettings.courseFee = Number(courseFee);
-    db.paymentSettings.courseFee = Number(courseFee);
+  if (courseFee !== undefined && !isNaN(Number(courseFee)) && Number(courseFee) > 0) {
+    const feeNum = Number(courseFee);
+    db.siteSettings.courseFee = feeNum;
+    db.paymentSettings.courseFee = feeNum;
   }
-  if (oldPrice !== undefined) {
-    db.siteSettings.oldPrice = Number(oldPrice);
-    db.paymentSettings.originalFee = Number(oldPrice);
+  if (oldPrice !== undefined && !isNaN(Number(oldPrice)) && Number(oldPrice) > 0) {
+    const oldNum = Number(oldPrice);
+    db.siteSettings.oldPrice = oldNum;
+    db.paymentSettings.originalFee = oldNum;
   }
   if (heroHeading !== undefined) db.siteSettings.heroHeading = heroHeading;
   if (heroSubtitle !== undefined) db.siteSettings.heroSubtitle = heroSubtitle;
@@ -3295,8 +3363,7 @@ User question: ${prompt}`,
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
   const distIndexHtml = path.join(distPath, "index.html");
-  const isProduction =
-    process.env.NODE_ENV === "production" || fs.existsSync(distIndexHtml);
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (!isProduction) {
     const vite = await createViteServer({
@@ -3304,7 +3371,7 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (fs.existsSync(distIndexHtml)) {
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(distIndexHtml);

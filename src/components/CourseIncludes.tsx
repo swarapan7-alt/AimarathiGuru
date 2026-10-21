@@ -62,7 +62,15 @@ const INCLUDES = [
   },
 ];
 
-export const CourseIncludes: React.FC = () => {
+interface CourseIncludesProps {
+  fee?: number;
+  oldPrice?: number;
+}
+
+export const CourseIncludes: React.FC<CourseIncludesProps> = ({
+  fee = 99,
+  oldPrice = 999,
+}) => {
   return (
     <section className="py-14 sm:py-20 bg-white border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,7 +83,7 @@ export const CourseIncludes: React.FC = () => {
             या कोर्समध्ये तुम्हाला <span className="text-red-600">काय काय मिळेल?</span>
           </h2>
           <p className="text-slate-600 text-sm sm:text-base font-marathi-sub max-w-xl mx-auto">
-            Course Fee ₹999 ऐवजी Special Offer मध्ये फक्त ₹99 मध्ये मिळवा 7 मोठे फायदे जे तुमच्या करिअरला गती देतील!
+            Course Fee ₹{oldPrice} ऐवजी Special Offer मध्ये फक्त ₹{fee} मध्ये मिळवा 7 मोठे फायदे जे तुमच्या करिअरला गती देतील!
           </p>
         </div>
 

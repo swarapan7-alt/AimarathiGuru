@@ -3,6 +3,7 @@ import {
   CreditCard,
   Save,
   CheckCircle2,
+  AlertCircle,
   ShieldCheck,
   Zap,
   Lock,
@@ -17,13 +18,14 @@ interface AdminPaymentSettingsTabProps {
 }
 
 export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = ({ onRefresh }) => {
-  const [courseFee, setCourseFee] = useState(99);
-  const [originalFee, setOriginalFee] = useState(999);
+  const [courseFee, setCourseFee] = useState<number | string>(99);
+  const [originalFee, setOriginalFee] = useState<number | string>(999);
   const [paymentLink, setPaymentLink] = useState('https://rzp.io/rzp/Wvuh93a');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     fetchPaymentSettings();
@@ -31,21 +33,32 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
 
   const fetchPaymentSettings = async () => {
     setIsLoading(true);
+    setSaveError('');
     const token = localStorage.getItem('amg_admin_token');
     try {
       const res = await fetch('/api/admin/payment-settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (res.ok && data.paymentSettings) {
-        setCourseFee(data.paymentSettings.courseFee || 99);
-        setOriginalFee(data.paymentSettings.originalFee || 999);
-        if (data.paymentSettings.paymentLink) {
-          setPaymentLink(data.paymentSettings.paymentLink);
+      if (res.ok) {
+        const ps = data.paymentSettings || data;
+        if (ps.courseFee !== undefined && !isNaN(Number(ps.courseFee))) {
+          setCourseFee(Number(ps.courseFee));
         }
+        if (ps.originalFee !== undefined && !isNaN(Number(ps.originalFee))) {
+          setOriginalFee(Number(ps.originalFee));
+        } else if (ps.oldPrice !== undefined && !isNaN(Number(ps.oldPrice))) {
+          setOriginalFee(Number(ps.oldPrice));
+        }
+        if (ps.paymentLink) {
+          setPaymentLink(ps.paymentLink);
+        }
+      } else {
+        setSaveError(data.error || 'पेमेंट सेटिंग्ज लोड करता आल्या नाहीत.');
       }
     } catch (e) {
       console.error('Failed fetching payment settings:', e);
+      setSaveError('सर्व्हरशी संपर्क होऊ शकला नाही.');
     } finally {
       setIsLoading(false);
     }
@@ -55,8 +68,24 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
     e.preventDefault();
     setIsSaving(true);
     setSaveSuccess(false);
+    setSaveError('');
 
     const token = localStorage.getItem('amg_admin_token');
+    const feeNum = Number(courseFee);
+    const origNum = Number(originalFee);
+
+    if (isNaN(feeNum) || feeNum <= 0) {
+      setSaveError('कृपया वैध Course Fee (रक्कम) प्रविष्ट करा.');
+      setIsSaving(false);
+      return;
+    }
+
+    if (isNaN(origNum) || origNum <= 0) {
+      setSaveError('कृपया वैध Original MRP (मूळ फी) प्रविष्ट करा.');
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/payment-settings', {
         method: 'PUT',
@@ -65,22 +94,43 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          courseFee: Number(courseFee),
-          originalFee: Number(originalFee),
+          courseFee: feeNum,
+          originalFee: origNum,
+          oldPrice: origNum,
           paymentLink: paymentLink.trim() || 'https://rzp.io/rzp/Wvuh93a',
         }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setSaveSuccess(true);
+        const ps = data.paymentSettings || data;
+        if (ps.courseFee !== undefined) setCourseFee(Number(ps.courseFee));
+        if (ps.originalFee !== undefined) setOriginalFee(Number(ps.originalFee));
+
+        // Sync with browser storage for instant persistence across pages/tabs
+        try {
+          const cached = localStorage.getItem('amg_cached_site_settings');
+          const obj = cached ? JSON.parse(cached) : {};
+          obj.courseFee = feeNum;
+          obj.oldPrice = origNum;
+          localStorage.setItem('amg_cached_site_settings', JSON.stringify(obj));
+        } catch (_) {}
+
+        // Broadcast to all open tabs and components in real time
+        window.dispatchEvent(new CustomEvent('websiteSettingsUpdated', { detail: data }));
+        window.dispatchEvent(new CustomEvent('website-settings-updated', { detail: data }));
+        window.dispatchEvent(new CustomEvent('paymentSettingsUpdated', { detail: data }));
+
         if (onRefresh) onRefresh();
-        setTimeout(() => setSaveSuccess(false), 3500);
+        setTimeout(() => setSaveSuccess(false), 4500);
       } else {
-        alert('पेमेंट सेटिंग्ज सेव्ह करता आल्या नाहीत.');
+        setSaveError(data.error || 'पेमेंट सेटिंग्ज सेव्ह करता आल्या नाहीत. कृपया सर्व्हर तपासा.');
       }
     } catch (e) {
       console.error(e);
-      alert('सर्व्हर एरर. कृपया पुन्हा प्रयत्न करा.');
+      setSaveError('सर्व्हर एरर. नेटवर्क किंवा सर्व्हर कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.');
     } finally {
       setIsSaving(false);
     }
@@ -126,6 +176,13 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           </div>
         )}
 
+        {saveError && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-extrabold flex items-center gap-2 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
+
         {/* 1. Course Fee Structure */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -157,11 +214,11 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
                   required
                   min={1}
                   value={courseFee}
-                  onChange={(e) => setCourseFee(Number(e.target.value))}
+                  onChange={(e) => setCourseFee(e.target.value)}
                   className="w-full pl-8 pr-4 py-2.5 text-base font-black text-slate-900 bg-white border border-stone-300 rounded-xl outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-poppins"
                 />
               </div>
-              <p className="text-[10px] text-slate-500 font-medium">विद्यार्थ्यांकडून आकारली जाणारी अंतिम फी (₹99)</p>
+              <p className="text-[10px] text-slate-500 font-medium">विद्यार्थ्यांकडून आकारली जाणारी अंतिम फी (₹{courseFee || 99})</p>
             </div>
 
             {/* Original Strike Fee */}
@@ -177,11 +234,11 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
                   required
                   min={1}
                   value={originalFee}
-                  onChange={(e) => setOriginalFee(Number(e.target.value))}
+                  onChange={(e) => setOriginalFee(e.target.value)}
                   className="w-full pl-8 pr-4 py-2.5 text-base font-black text-slate-400 bg-white border border-stone-300 rounded-xl outline-none focus:border-blue-600 line-through font-poppins"
                 />
               </div>
-              <p className="text-[10px] text-slate-500 font-medium">वेबसाईटवर कट करून दाखवली जाणारी मूळ किंमत (₹999)</p>
+              <p className="text-[10px] text-slate-500 font-medium">वेबसाईटवर कट करून दाखवली जाणारी मूळ किंमत (₹{originalFee || 999})</p>
             </div>
 
           </div>

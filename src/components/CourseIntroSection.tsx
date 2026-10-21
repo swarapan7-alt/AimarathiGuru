@@ -3,9 +3,13 @@ import { CheckCircle2, Sparkles, Smartphone, Award, Cpu, ShieldCheck } from 'luc
 
 interface CourseIntroSectionProps {
   onScrollToRegister?: () => void;
+  fee?: number;
 }
 
-export const CourseIntroSection: React.FC<CourseIntroSectionProps> = ({ onScrollToRegister }) => {
+export const CourseIntroSection: React.FC<CourseIntroSectionProps> = ({
+  onScrollToRegister,
+  fee = 99,
+}) => {
   return (
     <section id="course-info" className="py-16 sm:py-24 bg-white border-b border-stone-200 relative overflow-hidden">
       
@@ -179,7 +183,7 @@ export const CourseIntroSection: React.FC<CourseIntroSectionProps> = ({ onScroll
                   onClick={onScrollToRegister}
                   className="bg-[#1E3A8A] hover:bg-blue-900 text-white font-extrabold text-sm px-6 py-3.5 rounded-xl transition shadow-md shadow-blue-900/20 active:scale-95 cursor-pointer"
                 >
-                  फक्त ₹99 मध्ये Join करा →
+                  फक्त ₹{fee} मध्ये Join करा →
                 </button>
               </div>
             )}

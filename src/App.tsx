@@ -33,10 +33,31 @@ export default function App() {
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [communityLink, setCommunityLink] = useState('https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO');
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string>('');
 
   // Dynamic Content loaded from backend with persistent instant local storage cache
   const [courseDates, setCourseDates] = useState<CourseDateRecord[]>([]);
-  const [courseFee, setCourseFee] = useState(99);
+  const [courseFee, setCourseFee] = useState<number>(() => {
+    try {
+      const cached = localStorage.getItem('amg_cached_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.courseFee && !isNaN(Number(parsed.courseFee))) return Number(parsed.courseFee);
+      }
+    } catch (_) {}
+    return 99;
+  });
+  const [originalFee, setOriginalFee] = useState<number>(() => {
+    try {
+      const cached = localStorage.getItem('amg_cached_site_settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.oldPrice && !isNaN(Number(parsed.oldPrice))) return Number(parsed.oldPrice);
+        if (parsed.originalFee && !isNaN(Number(parsed.originalFee))) return Number(parsed.originalFee);
+      }
+    } catch (_) {}
+    return 999;
+  });
   const [siteSettings, setSiteSettings] = useState<Partial<SiteSettings>>(() => {
     try {
       const cached = localStorage.getItem('amg_cached_site_settings');
@@ -105,9 +126,11 @@ export default function App() {
 
     window.addEventListener('websiteSettingsUpdated', handleSettingsUpdated);
     window.addEventListener('website-settings-updated', handleSettingsUpdated);
+    window.addEventListener('paymentSettingsUpdated', handleSettingsUpdated);
     return () => {
       window.removeEventListener('websiteSettingsUpdated', handleSettingsUpdated);
       window.removeEventListener('website-settings-updated', handleSettingsUpdated);
+      window.removeEventListener('paymentSettingsUpdated', handleSettingsUpdated);
     };
   }, []);
 
@@ -122,11 +145,21 @@ export default function App() {
           try {
             localStorage.setItem('amg_cached_site_settings', JSON.stringify(data.siteSettings));
           } catch (_) {}
-          if (data.siteSettings.courseFee) setCourseFee(data.siteSettings.courseFee);
+          if (data.siteSettings.courseFee !== undefined && !isNaN(Number(data.siteSettings.courseFee))) {
+            setCourseFee(Number(data.siteSettings.courseFee));
+          }
+          if (data.siteSettings.oldPrice !== undefined && !isNaN(Number(data.siteSettings.oldPrice))) {
+            setOriginalFee(Number(data.siteSettings.oldPrice));
+          }
         }
         if (data.paymentSettings) {
           setPaymentSettings(data.paymentSettings);
-          if (data.paymentSettings.courseFee) setCourseFee(data.paymentSettings.courseFee);
+          if (data.paymentSettings.courseFee !== undefined && !isNaN(Number(data.paymentSettings.courseFee))) {
+            setCourseFee(Number(data.paymentSettings.courseFee));
+          }
+          if (data.paymentSettings.originalFee !== undefined && !isNaN(Number(data.paymentSettings.originalFee))) {
+            setOriginalFee(Number(data.paymentSettings.originalFee));
+          }
         }
         if (data.whatsappSettings) {
           setWhatsappSettings(data.whatsappSettings);
@@ -216,6 +249,7 @@ export default function App() {
   const handleFormSubmit = async (data: RegistrationFormData) => {
     console.log('PAY_BUTTON_CLICKED');
     setIsLoading(true);
+    setRegistrationError('');
     setPendingFormData(data);
 
     try {
@@ -257,19 +291,17 @@ export default function App() {
         };
         localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
 
-        const paymentDestination =
-          resData.paymentUrl ||
-          resData.paymentLink ||
-          paymentSettings?.paymentLink ||
-          'https://rzp.io/rzp/Wvuh93a';
-
-        console.log('REDIRECTING_TO_PAYMENT_LINK', paymentDestination);
-
-        // Redirect directly to the Razorpay Payment Link
-        window.location.href = paymentDestination;
+        // Open Razorpay Standard Checkout in PaymentModal
+        setPendingSession({
+          tempId: resData.tempId,
+          registration: resData.pendingRegistration,
+          razorpayKeyId: resData.keyId || paymentSettings?.razorpayKeyId,
+          razorpayOrderId: resData.orderId || resData.order_id,
+        });
+        setShowPaymentModal(true);
       } else {
         setIsLoading(false);
-        alert(
+        setRegistrationError(
           resData.error ||
             'नोंदणी प्रक्रियेत अडचण आली. कृपया सर्व आवश्यक माहिती तपासा आणि पुन्हा प्रयत्न करा.',
         );
@@ -277,7 +309,7 @@ export default function App() {
     } catch (err) {
       setIsLoading(false);
       console.error('Registration submit error:', err);
-      alert('तांत्रिक अडचण आली. कृपया पुन्हा प्रयत्न करा.');
+      setRegistrationError('तांत्रिक अडचण आली. कृपया पुन्हा प्रयत्न करा.');
     } finally {
       setIsLoading(false);
     }
@@ -302,6 +334,8 @@ export default function App() {
         onOpenLookup={() => setShowLookupModal(true)}
         onOpenAdmin={openAdmin}
         onScrollToRegister={scrollToRegister}
+        fee={courseFee}
+        oldPrice={originalFee}
       />
 
       <main className="flex-1">
@@ -310,6 +344,8 @@ export default function App() {
           onScrollToRegister={scrollToRegister}
           instructorPhoto={siteSettings.instructor_photo_url || siteSettings.instructorPhoto || siteSettings.instructorPhotoUrl || ''}
           communityLink={communityLink}
+          fee={courseFee}
+          oldPrice={originalFee}
         />
 
         {/* 3. WHAT YOU WILL LEARN (6 clean cards) */}
@@ -334,6 +370,8 @@ export default function App() {
           isLoading={isLoading}
           courseDates={courseDates}
           fee={courseFee}
+          oldPrice={originalFee}
+          submissionError={registrationError}
         />
 
         {/* 7. FAQ SECTION (4 exact questions) */}
@@ -343,6 +381,7 @@ export default function App() {
         <FinalCtaSection
           onScrollToRegister={scrollToRegister}
           fee={courseFee}
+          oldPrice={originalFee}
         />
       </main>
 
@@ -354,7 +393,11 @@ export default function App() {
       />
 
       {/* Sticky Mobile Bar & Sticky WhatsApp */}
-      <StickyMobileCta onScrollToRegister={scrollToRegister} />
+      <StickyMobileCta
+        onScrollToRegister={scrollToRegister}
+        fee={courseFee}
+        oldPrice={originalFee}
+      />
       <StickyWhatsApp />
 
       {/* MODALS */}
@@ -371,6 +414,7 @@ export default function App() {
           }}
           onPaymentSuccess={handlePaymentSuccess}
           fee={courseFee}
+          oldPrice={originalFee}
           paymentLink={paymentSettings?.paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
         />
       )}

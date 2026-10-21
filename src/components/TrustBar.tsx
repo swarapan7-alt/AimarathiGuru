@@ -1,7 +1,11 @@
 import React from 'react';
 import { Video, Languages, Laptop, MessageCircle, DollarSign } from 'lucide-react';
 
-export const TrustBar: React.FC = () => {
+interface TrustBarProps {
+  fee?: number;
+}
+
+export const TrustBar: React.FC<TrustBarProps> = ({ fee = 99 }) => {
   const trustItems = [
     {
       icon: Video,
@@ -23,7 +27,7 @@ export const TrustBar: React.FC = () => {
     },
     {
       icon: DollarSign,
-      title: 'ONLY ₹99',
+      title: `ONLY ₹${fee}`,
       subtitle: 'Affordable Learning',
       color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     },

@@ -4,11 +4,13 @@ import { Sparkles, ArrowRight } from 'lucide-react';
 interface FinalCtaSectionProps {
   onScrollToRegister: () => void;
   fee?: number;
+  oldPrice?: number;
 }
 
 export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
   onScrollToRegister,
   fee = 99,
+  oldPrice = 999,
 }) => {
   return (
     <section className="py-12 sm:py-16 bg-[#FAF8F5] border-b border-stone-200/80">
@@ -24,7 +26,7 @@ export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
         </h2>
 
         <p className="text-stone-700 text-base sm:text-lg font-marathi-sub max-w-xl mx-auto">
-          Course Fee <span className="line-through text-stone-400">₹999</span> ऐवजी Special Offer <strong className="text-[#E53935] font-black font-poppins">🔥 ONLY ₹{fee}</strong> मध्ये २ तासांची <strong>Practical Live Training</strong>.
+          Course Fee <span className="line-through text-stone-400">₹{oldPrice}</span> ऐवजी Special Offer <strong className="text-[#E53935] font-black font-poppins">🔥 ONLY ₹{fee}</strong> मध्ये २ तासांची <strong>Practical Live Training</strong>.
         </p>
 
         <div className="pt-2">

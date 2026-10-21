@@ -6,12 +6,16 @@ interface NavbarProps {
   onOpenLookup: () => void;
   onOpenAdmin: () => void;
   onScrollToRegister: () => void;
+  fee?: number;
+  oldPrice?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenLookup,
   onOpenAdmin,
   onScrollToRegister,
+  fee = 99,
+  oldPrice = 999,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -32,7 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
         </span>
         <span className="font-marathi-sub text-xs sm:text-sm">
-          🔥 मर्यादित जागा! Course Fee ₹999 ऐवजी Special Offer <strong className="text-amber-300 font-extrabold font-poppins">ONLY ₹99</strong> (90% OFF)
+          🔥 मर्यादित जागा! Course Fee ₹{oldPrice} ऐवजी Special Offer <strong className="text-amber-300 font-extrabold font-poppins">ONLY ₹{fee}</strong>
         </span>
       </div>
 

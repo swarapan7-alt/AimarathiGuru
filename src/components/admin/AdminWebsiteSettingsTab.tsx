@@ -83,9 +83,10 @@ export const AdminWebsiteSettingsTab: React.FC<
       const data = await res.json();
       if (res.ok) {
         const s = data.siteSettings || {};
+        const ps = data.paymentSettings || {};
         if (s.courseName) setCourseName(s.courseName);
-        if (s.courseFee) setCourseFee(s.courseFee);
-        if (s.oldPrice) setOldPrice(s.oldPrice);
+        if (ps.courseFee || s.courseFee) setCourseFee(ps.courseFee || s.courseFee);
+        if (ps.originalFee || s.oldPrice) setOldPrice(ps.originalFee || s.oldPrice);
         if (s.heroHeading) setHeroHeading(s.heroHeading);
         if (s.heroSubtitle) setHeroSubtitle(s.heroSubtitle);
         if (s.instructorName) setInstructorName(s.instructorName);

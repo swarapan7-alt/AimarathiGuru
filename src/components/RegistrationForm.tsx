@@ -21,6 +21,8 @@ interface RegistrationFormProps {
   isLoading: boolean;
   courseDates?: CourseDateRecord[];
   fee?: number;
+  oldPrice?: number;
+  submissionError?: string;
 }
 
 const DISTRICTS = [
@@ -80,6 +82,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   isLoading,
   courseDates = [],
   fee = 99,
+  oldPrice = 999,
+  submissionError,
 }) => {
   const activeDates = courseDates.filter((cd) => cd.enabled);
   const defaultDate = activeDates[0] || null;
@@ -272,7 +276,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               ⏱ Duration: <strong>2 Hours</strong>
             </span>
             <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs flex items-center gap-1.5">
-              <span className="text-stone-400 line-through">₹999</span>
+              <span className="text-stone-400 line-through">₹{oldPrice}</span>
               <span className="text-[#E53935] font-black font-poppins">🔥 ONLY ₹{fee}</span>
             </span>
             <span className="px-3 py-1 bg-white rounded-full border border-stone-200 shadow-xs text-emerald-700">
@@ -663,10 +667,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
 
             {/* Error message directly above submit button */}
-            {errorMsg && (
+            {(errorMsg || submissionError) && (
               <div className="p-3.5 rounded-2xl bg-red-50 border border-red-300 text-[#E53935] text-xs sm:text-sm font-bold flex items-center gap-2 animate-shake">
                 <AlertCircle className="w-5 h-5 shrink-0 text-[#E53935]" />
-                <span>{errorMsg}</span>
+                <span>{errorMsg || submissionError}</span>
               </div>
             )}
 

@@ -13,11 +13,15 @@ interface HeroSectionProps {
   onScrollToRegister: () => void;
   instructorPhoto?: string;
   communityLink?: string;
+  fee?: number;
+  oldPrice?: number;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   onScrollToRegister,
   instructorPhoto = '',
+  fee = 99,
+  oldPrice = 999,
 }) => {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-white to-[#FAF8F5] text-stone-900 pt-8 pb-14 sm:pt-14 sm:pb-20 border-b border-stone-200/80">
@@ -63,13 +67,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <div className="inline-flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-amber-300/60 shadow-md shadow-stone-200/50">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-stone-500 font-bold font-marathi-sub">Course Fee:</span>
-                <span className="text-sm text-stone-400 line-through font-poppins font-semibold">₹999</span>
+                <span className="text-sm text-stone-400 line-through font-poppins font-semibold">₹{oldPrice}</span>
               </div>
               <div className="h-5 w-px bg-stone-200" />
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-stone-600 font-bold font-marathi-sub">Special Offer:</span>
                 <span className="text-2xl sm:text-3xl font-black text-[#DC2626] font-poppins tracking-tight">
-                  🔥 ONLY ₹99
+                  🔥 ONLY ₹{fee}
                 </span>
               </div>
               <div className="h-6 w-px bg-stone-200 hidden sm:block" />
@@ -85,7 +89,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 className="bg-gradient-to-r from-[#DC2626] via-[#E11D48] to-[#DC2626] hover:brightness-110 text-white font-extrabold text-base sm:text-lg px-8 py-4 rounded-full transition-all shadow-xl shadow-red-600/30 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer font-poppins uppercase tracking-wider border border-white/20"
               >
                 <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-                <span>फक्त ₹99 मध्ये Join करा</span>
+                <span>फक्त ₹{fee} मध्ये Join करा</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>

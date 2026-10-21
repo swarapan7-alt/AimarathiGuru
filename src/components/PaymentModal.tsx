@@ -30,6 +30,7 @@ interface PaymentModalProps {
   onClose: () => void;
   onPaymentSuccess: (confirmedRegistration: RegistrationRecord, whatsappMessage?: string) => void;
   fee?: number;
+  oldPrice?: number;
   paymentLink?: string;
 }
 
@@ -42,6 +43,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onPaymentSuccess,
   fee = 99,
+  oldPrice = 999,
   paymentLink = 'https://rzp.io/rzp/Wvuh93a',
 }) => {
   const [paymentState, setPaymentState] = useState<
@@ -49,6 +51,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   >('IDLE');
   const [errorMessage, setErrorMessage] = useState('');
   const [isManualChecking, setIsManualChecking] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
   const [confirmedWhatsappMsg, setConfirmedWhatsappMsg] = useState('');
 
@@ -81,6 +84,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setEffectiveOrderId(razorpayOrderId);
     }
   }, [razorpayKeyId, razorpayOrderId]);
+
+  // Automatically launch checkout once modal opens
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleOpenRazorpay();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [activeTempId]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -147,9 +158,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [paymentState, activeTempId, studentMobile]);
 
   // Open Razorpay Payment Flow (Mobile and Desktop Standard Checkout)
-  const handleOpenRazorpay = async () => {
+  const handleOpenRazorpay = async (forceFreshOrder = false) => {
     console.log('PAY_BUTTON_CLICKED');
     console.log('CREATE_ORDER_STARTED');
+    setIsLaunching(true);
     setErrorMessage('');
 
     let keyToUse = effectiveKeyId || razorpayKeyId || '';
@@ -167,11 +179,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
 
     if (!keyToUse) {
-      setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+      setIsLaunching(false);
+      setPaymentState('FAILED');
+      setErrorMessage('Payment सुरू करता आले नाही (Razorpay Key ID उपलब्ध नाही). कृपया पुन्हा प्रयत्न करा.');
       return;
     }
 
-    let orderIdToUse = effectiveOrderId || razorpayOrderId || '';
+    let orderIdToUse = forceFreshOrder ? '' : (effectiveOrderId || razorpayOrderId || '');
     if ((!orderIdToUse || !orderIdToUse.startsWith('order_')) && activeTempId) {
       try {
         const ordRes = await fetch('/api/payment/create-order', {
@@ -191,12 +205,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           console.log('CREATE_ORDER_SUCCESS');
           console.log('ORDER_ID_RECEIVED', newOrderId);
         } else {
-          setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+          setIsLaunching(false);
+          setPaymentState('FAILED');
+          setErrorMessage(ordData.error || 'Payment सुरू करता आले नाही. सर्व्हरवर ऑर्डर तयार करता आली नाही. कृपया पुन्हा प्रयत्न करा.');
           return;
         }
       } catch (e) {
+        setIsLaunching(false);
         console.error('Order creation error:', e);
-        setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+        setPaymentState('FAILED');
+        setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.');
         return;
       }
     } else if (orderIdToUse) {
@@ -205,7 +223,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
 
     if (!orderIdToUse || !orderIdToUse.startsWith('order_')) {
-      setErrorMessage('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
+      setIsLaunching(false);
+      setPaymentState('FAILED');
+      setErrorMessage('Payment सुरू करता आले नाही (वैध Order ID उपलब्ध नाही). कृपया पुन्हा प्रयत्न करा.');
       return;
     }
 
@@ -226,6 +246,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         mobileNumber: studentMobile,
       },
       onSuccess: async (response) => {
+        setIsLaunching(false);
         setPaymentState('CHECKING');
         try {
           const verifyRes = await fetch('/api/payment/verify', {
@@ -259,7 +280,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       },
       onDismiss: () => {
+        setIsLaunching(false);
         setPaymentState('CANCELLED');
+        setErrorMessage('पेमेंट स्क्रीन बंद झाली किंवा रद्द करण्यात आली.');
         fetch('/api/payment/cancel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -267,6 +290,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }).catch(() => {});
       },
       onError: (err: any) => {
+        setIsLaunching(false);
         setPaymentState('FAILED');
         setErrorMessage(err?.description || err?.message || 'पेमेंट सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
         fetch('/api/payment/fail', {
@@ -281,27 +305,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       },
     });
 
+    setIsLaunching(false);
     if (!launched) {
+      setPaymentState('FAILED');
       setErrorMessage('Razorpay Checkout उघडता आले नाही. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.');
     }
   };
 
-  // Retry payment after failure or cancellation (opens the new Razorpay payment link)
+  // Retry payment after failure or cancellation (re-launches Razorpay Standard Checkout with fresh order)
   const handleRetryPayment = () => {
-    console.log('PAY_BUTTON_CLICKED');
-    const targetUrl = paymentLink || 'https://rzp.io/rzp/Wvuh93a';
-    if (activeTempId) {
-      const sessionPayload = {
-        tempId: activeTempId,
-        mobileNumber: studentMobile,
-        fullName: studentName,
-        courseDateDisplay: studentDate,
-        slotTimeDisplay: studentSlot,
-        amount: fee,
-      };
-      localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
-    }
-    window.location.href = targetUrl;
+    console.log('RETRY_PAYMENT_CLICKED');
+    setPaymentState('IDLE');
+    setErrorMessage('');
+    setEffectiveOrderId('');
+    handleOpenRazorpay(true);
   };
 
   // Cancel / Dismiss Modal
@@ -355,7 +372,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="bg-blue-50 px-6 py-3.5 border-b border-blue-100 flex items-center justify-between text-sm">
           <div>
             <span className="text-slate-700 font-bold block">कोर्स फी (Course Fee):</span>
-            <span className="text-xs text-slate-400 line-through font-poppins">₹999</span>
+            <span className="text-xs text-slate-400 line-through font-poppins">₹{oldPrice}</span>
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xs font-black text-amber-700 uppercase font-poppins">SPECIAL OFFER:</span>
@@ -601,17 +618,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 खालील बटणावर क्लिक करून Razorpay वर <strong>₹{fee}</strong> पेमेंट करा.
               </p>
               
+              {errorMessage && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
               <button
                 type="button"
                 id="modal-pay-razorpay-btn"
+                disabled={isLaunching}
                 onClick={() => {
                   console.log('PAY_BUTTON_CLICKED');
                   handleOpenRazorpay();
                 }}
-                className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition"
+                className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition disabled:opacity-75 disabled:cursor-wait"
               >
-                <ShieldCheck className="w-4.5 h-4.5" />
-                <span>PAY ₹{fee}</span>
+                {isLaunching ? (
+                  <>
+                    <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                    <span>CHECKOUT सुरू होत आहे...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4.5 h-4.5" />
+                    <span>PAY ₹{fee}</span>
+                  </>
+                )}
               </button>
 
               {/* Payment Method Badges */}
