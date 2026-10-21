@@ -62,11 +62,15 @@ export interface RegistrationRecord extends RegistrationFormData {
   paymentStatus: PaymentStatus;
   paymentVerified?: boolean;
   paymentId: string;
+  paymentLinkId?: string;
   orderId?: string;
   amountPaid: number; // 99
   paymentDate?: string;
   failureReason?: string;
   whatsappJoined: boolean;
+  whatsappSent?: boolean;
+  whatsappSentAt?: string;
+  whatsappDeliveryStatus?: string;
   meetLink?: string;
   reminderSent24h?: boolean;
   reminderSent2h?: boolean;
@@ -85,6 +89,7 @@ export interface AdminUser {
 export interface PaymentSettings {
   courseFee: number;
   originalFee: number;
+  paymentLink?: string;
   gateway?: string;
   gatewayStatus?: string;
   liveMode?: string;

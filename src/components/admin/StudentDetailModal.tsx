@@ -306,6 +306,18 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   <span className="text-blue-900 font-extrabold">फी व Payment ID:</span>
                   <span className="font-mono text-slate-800 font-bold">₹{amountPaid} • {paymentId || 'N/A'}</span>
                 </div>
+                {student.paymentLinkId && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-blue-900 font-extrabold">Payment Link ID:</span>
+                    <span className="font-mono text-slate-800 font-bold">{student.paymentLinkId}</span>
+                  </div>
+                )}
+                {student.failureReason && (
+                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs mt-2">
+                    <span className="font-bold block">पेमेंट त्रुटी (Payment Error / Failure):</span>
+                    <span>{student.failureReason}</span>
+                  </div>
+                )}
               </div>
 
               {/* Instant WhatsApp Communication Box */}

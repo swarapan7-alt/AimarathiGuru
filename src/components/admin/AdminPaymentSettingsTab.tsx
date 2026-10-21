@@ -19,6 +19,7 @@ interface AdminPaymentSettingsTabProps {
 export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = ({ onRefresh }) => {
   const [courseFee, setCourseFee] = useState(99);
   const [originalFee, setOriginalFee] = useState(999);
+  const [paymentLink, setPaymentLink] = useState('https://rzp.io/rzp/Wvuh93a');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +40,9 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
       if (res.ok && data.paymentSettings) {
         setCourseFee(data.paymentSettings.courseFee || 99);
         setOriginalFee(data.paymentSettings.originalFee || 999);
+        if (data.paymentSettings.paymentLink) {
+          setPaymentLink(data.paymentSettings.paymentLink);
+        }
       }
     } catch (e) {
       console.error('Failed fetching payment settings:', e);
@@ -54,7 +58,6 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
 
     const token = localStorage.getItem('amg_admin_token');
     try {
-      // Partial update only: persists courseFee and originalFee without touching any other configuration
       const res = await fetch('/api/admin/payment-settings', {
         method: 'PUT',
         headers: {
@@ -64,6 +67,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
         body: JSON.stringify({
           courseFee: Number(courseFee),
           originalFee: Number(originalFee),
+          paymentLink: paymentLink.trim() || 'https://rzp.io/rzp/Wvuh93a',
         }),
       });
 
@@ -183,16 +187,16 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           </div>
         </div>
 
-        {/* 2. Payment Gateway Architecture */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border border-emerald-200 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 pb-3">
+        {/* 2. Official Razorpay Payment Link Configuration */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/60 pb-3">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-wider text-emerald-800 font-poppins">
+              <div className="text-[10px] font-black uppercase tracking-wider text-blue-800 font-poppins">
                 Official Gateway Configuration
               </div>
               <h4 className="text-sm font-black text-slate-900 font-poppins flex items-center gap-1.5">
                 <span>Payment Gateway:</span>
-                <span className="text-emerald-700">Razorpay Standard Checkout</span>
+                <span className="text-blue-700">Razorpay Payment Link</span>
               </h4>
             </div>
             <div className="flex items-center gap-2">
@@ -202,33 +206,69 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-white border border-emerald-100 shadow-xs space-y-1.5">
-              <div className="flex items-center gap-2 font-black text-slate-900 font-poppins">
-                <Smartphone className="w-4 h-4 text-emerald-600" />
-                <span>Mobile Experience</span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Native UPI Intent Checkout. Opens directly into PhonePe, Google Pay, Paytm, or BHIM, returning back to the site upon payment.
-              </p>
+          {/* Payment Link Input */}
+          <div className="p-4 rounded-xl bg-white border border-blue-100 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-slate-800 font-poppins flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span>Active Razorpay Payment Link (अधिकृत पेमेंट लिंक)</span>
+              </label>
+              <a
+                href={paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline"
+              >
+                Test Link ↗
+              </a>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white border border-emerald-100 shadow-xs space-y-1.5">
-              <div className="flex items-center gap-2 font-black text-slate-900 font-poppins">
-                <Monitor className="w-4 h-4 text-blue-600" />
-                <span>Desktop Experience</span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Razorpay Dynamic UPI QR Code, Debit/Credit Cards, and Netbanking on the active page via official checkout.js.
-              </p>
+            <div className="relative">
+              <input
+                type="url"
+                required
+                value={paymentLink}
+                onChange={(e) => setPaymentLink(e.target.value)}
+                placeholder="https://rzp.io/rzp/Wvuh93a"
+                className="w-full px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 bg-slate-50 border border-stone-300 rounded-xl outline-none focus:border-blue-600 focus:bg-white transition"
+              />
             </div>
+            <p className="text-[11px] text-slate-500">
+              विद्यार्थ्यांनी "Proceed to Pay" वर क्लिक केल्यास ते थेट या Razorpay पेमेंट लिंकवर रिडायरेक्ट होतील.
+            </p>
           </div>
 
-          <div className="p-3 rounded-xl bg-emerald-100/50 border border-emerald-200 text-[11px] text-emerald-900 font-medium flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span>
-              <strong>100% Automated:</strong> Orders API &rarr; Standard Web Checkout &rarr; HMAC Signature Verification &rarr; Instant Webhook &rarr; Automated Confirmation.
-            </span>
+          {/* Webhook Reconciliation Info */}
+          <div className="p-3.5 rounded-xl bg-white border border-blue-100 shadow-xs space-y-2 text-xs">
+            <div className="flex items-center gap-1.5 font-black text-slate-800 font-poppins">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Razorpay Webhook Verification & Reconciliation</span>
+            </div>
+            <div className="space-y-1 text-[11px] text-slate-600">
+              <p>
+                <strong>Webhook URL:</strong>{' '}
+                <code className="bg-slate-100 px-2 py-0.5 rounded font-mono text-slate-800">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/payment/webhook` : '/api/payment/webhook'}
+                </code>
+              </p>
+              <p>
+                <strong>Monitored Events:</strong>{' '}
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">
+                  payment_link.paid
+                </code>
+                ,{' '}
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">
+                  payment.captured
+                </code>
+                ,{' '}
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">
+                  payment.failed
+                </code>
+              </p>
+              <p className="text-emerald-800 font-medium">
+                ✓ HMAC-SHA256 Raw-Body Signature Check • Amount & Currency Verification • Automatic Duplicate Protection
+              </p>
+            </div>
           </div>
         </div>
 

@@ -152,15 +152,74 @@ export default function App() {
     }
   };
 
-  // STEP 1: Called when user submits registration form
+  // Check for returning payment redirect or pending session on load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const payId =
+      urlParams.get('razorpay_payment_id') ||
+      urlParams.get('payment_id') ||
+      '';
+    const plinkId =
+      urlParams.get('razorpay_payment_link_id') ||
+      urlParams.get('plink_id') ||
+      '';
+
+    const storedSession = localStorage.getItem('amg_pending_session');
+    let parsedSession: any = null;
+    if (storedSession) {
+      try {
+        parsedSession = JSON.parse(storedSession);
+      } catch (_) {}
+    }
+
+    if (payId || plinkId || parsedSession) {
+      const tempId = parsedSession?.tempId || '';
+      const mobileNumber = parsedSession?.mobileNumber || '';
+
+      fetch('/api/payment/check-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tempId,
+          mobileNumber,
+          razorpay_payment_id: payId,
+          razorpay_payment_link_id: plinkId,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (
+            data.success &&
+            data.paymentStatus === 'PAID' &&
+            data.registrationStatus === 'CONFIRMED' &&
+            data.registration
+          ) {
+            // Securely confirmed!
+            localStorage.removeItem('amg_pending_session');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setCurrentRegistration(data.registration);
+            setWhatsappMessage(data.whatsappMessage || '');
+            setShowConfirmationModal(true);
+          } else if (parsedSession) {
+            setPendingSession({
+              tempId,
+              registration: parsedSession,
+            });
+            setShowPaymentModal(true);
+          }
+        })
+        .catch((err) => console.warn('Payment check on return error:', err));
+    }
+  }, []);
+
+  // Called when user submits registration form
   const handleFormSubmit = async (data: RegistrationFormData) => {
     console.log('PAY_BUTTON_CLICKED');
-    console.log('CREATE_ORDER_STARTED');
     setIsLoading(true);
     setPendingFormData(data);
 
     try {
-      // 1. Create temporary PENDING registration session & Razorpay order
+      // 1. Save temporary PENDING registration on server
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,7 +231,11 @@ export default function App() {
       if (response.ok && resData.success) {
         if (resData.communityLink) setCommunityLink(resData.communityLink);
 
-        if (resData.alreadyRegistered && resData.registration && resData.paymentStatus === 'PAID') {
+        if (
+          resData.alreadyRegistered &&
+          resData.registration &&
+          resData.paymentStatus === 'PAID'
+        ) {
           // If already paid and confirmed, show confirmation directly
           setCurrentRegistration(resData.registration);
           setWhatsappMessage(resData.whatsappMessage || '');
@@ -181,116 +244,35 @@ export default function App() {
           return;
         }
 
-        let orderId = resData.order_id || resData.razorpayOrderId || resData.orderId;
-        let keyId = resData.razorpayKeyId || resData.keyId;
-
-        // If orderId missing, call backend create-order API directly
-        if (!orderId || !orderId.startsWith('order_') || !keyId) {
-          try {
-            const ordRes = await fetch('/api/payment/create-order', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tempId: resData.tempId }),
-            });
-            const ordData = await ordRes.json();
-            if (ordData.success && (ordData.order_id || ordData.orderId)) {
-              orderId = ordData.order_id || ordData.orderId;
-              keyId = keyId || ordData.keyId;
-            }
-          } catch (createErr) {
-            console.error('Failed to create order via /api/payment/create-order:', createErr);
-          }
-        }
-
-        // Verify valid order ID and key ID before opening checkout
-        if (!orderId || !orderId.startsWith('order_') || !keyId) {
-          console.error('Razorpay order creation failed or invalid order ID:', resData);
-          alert('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
-          setIsLoading(false);
-          setShowPaymentModal(true);
-          return;
-        }
-
-        console.log('CREATE_ORDER_SUCCESS');
-        console.log('ORDER_ID_RECEIVED', orderId);
-
-        // Store pending session for tracking & retry
-        const sessionData = {
+        // Store pending session for tracking and return reconciliation
+        const sessionPayload = {
           tempId: resData.tempId,
-          registration: resData.pendingRegistration,
-          razorpayKeyId: keyId,
-          razorpayOrderId: orderId,
+          mobileNumber: data.mobileNumber,
+          fullName: data.fullName,
+          courseDateDisplay:
+            resData.pendingRegistration?.courseDateDisplay || data.courseDateDisplay,
+          slotTimeDisplay:
+            resData.pendingRegistration?.slotTimeDisplay || data.slotTimeDisplay,
+          amount: resData.amount || 99,
         };
-        setPendingSession(sessionData);
+        localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
 
-          // ONE UNIFIED RAZORPAY STANDARD CHECKOUT FLOW FOR BOTH MOBILE AND DESKTOP:
-          // Mobile -> naturally adapts to UPI Intent (PhonePe/Google Pay/Paytm/BHIM)
-          // Desktop -> naturally adapts to UPI QR Code + Cards + Netbanking
-          const feeAmount = (resData.amount || resData.courseFee || courseFee || 99) * 100;
+        const paymentDestination =
+          resData.paymentUrl ||
+          resData.paymentLink ||
+          paymentSettings?.paymentLink ||
+          'https://rzp.io/rzp/Wvuh93a';
 
-          const launched = await launchRazorpayStandardCheckout({
-            keyId: keyId,
-            orderId: orderId,
-            amountInPaise: feeAmount,
-            name: 'AI Marathi Guru',
-            description: 'Live Online Course Registration Fee',
-            prefill: {
-              name: data.fullName,
-              contact: data.mobileNumber,
-              email: data.email || '',
-            },
-            notes: {
-              tempId: resData.tempId,
-              mobileNumber: data.mobileNumber,
-              courseDate: data.courseDateId,
-              slot: data.selectedSlot,
-            },
-            onSuccess: async (payResponse) => {
-              setIsLoading(false);
-              try {
-                const verifyRes = await fetch('/api/payment/verify', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    tempId: resData.tempId,
-                    studentId: resData.tempId,
-                    mobileNumber: data.mobileNumber,
-                    razorpay_payment_id: payResponse.razorpay_payment_id,
-                    razorpay_order_id: payResponse.razorpay_order_id || orderId,
-                    razorpay_signature: payResponse.razorpay_signature,
-                  }),
-                });
-                const verifyData = await verifyRes.json();
-                if (verifyRes.ok && verifyData.success && verifyData.registration) {
-                  handlePaymentSuccess(verifyData.registration, verifyData.whatsappMessage);
-                  return;
-                }
-              } catch (verifyErr) {
-                console.error('Payment verification error:', verifyErr);
-              }
-              // If automatic verification encountered network delay, show modal to track
-              setShowPaymentModal(true);
-            },
-            onDismiss: () => {
-              setIsLoading(false);
-              // Student cancelled or dismissed checkout; show PaymentModal for retry
-              setShowPaymentModal(true);
-            },
-            onError: (err) => {
-              setIsLoading(false);
-              console.error('Razorpay checkout error:', err);
-              alert('Payment सुरू करता आले नाही. कृपया पुन्हा प्रयत्न करा.');
-              setShowPaymentModal(true);
-            },
-          });
+        console.log('REDIRECTING_TO_PAYMENT_LINK', paymentDestination);
 
-          setIsLoading(false);
-          if (!launched) {
-            setShowPaymentModal(true);
-          }
+        // Redirect directly to the Razorpay Payment Link
+        window.location.href = paymentDestination;
       } else {
         setIsLoading(false);
-        alert(resData.error || 'नोंदणी प्रक्रियेत अडचण आली. कृपया पुन्हा प्रयत्न करा.');
+        alert(
+          resData.error ||
+            'नोंदणी प्रक्रियेत अडचण आली. कृपया सर्व आवश्यक माहिती तपासा आणि पुन्हा प्रयत्न करा.',
+        );
       }
     } catch (err) {
       setIsLoading(false);
@@ -389,6 +371,7 @@ export default function App() {
           }}
           onPaymentSuccess={handlePaymentSuccess}
           fee={courseFee}
+          paymentLink={paymentSettings?.paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
         />
       )}
 

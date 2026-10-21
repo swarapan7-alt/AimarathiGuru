@@ -30,6 +30,7 @@ interface PaymentModalProps {
   onClose: () => void;
   onPaymentSuccess: (confirmedRegistration: RegistrationRecord, whatsappMessage?: string) => void;
   fee?: number;
+  paymentLink?: string;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -41,6 +42,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onPaymentSuccess,
   fee = 99,
+  paymentLink = 'https://rzp.io/rzp/Wvuh93a',
 }) => {
   const [paymentState, setPaymentState] = useState<
     'IDLE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
@@ -284,12 +286,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  // Retry payment after failure or cancellation
+  // Retry payment after failure or cancellation (opens the new Razorpay payment link)
   const handleRetryPayment = () => {
     console.log('PAY_BUTTON_CLICKED');
-    setPaymentState('IDLE');
-    setErrorMessage('');
-    handleOpenRazorpay();
+    const targetUrl = paymentLink || 'https://rzp.io/rzp/Wvuh93a';
+    if (activeTempId) {
+      const sessionPayload = {
+        tempId: activeTempId,
+        mobileNumber: studentMobile,
+        fullName: studentName,
+        courseDateDisplay: studentDate,
+        slotTimeDisplay: studentSlot,
+        amount: fee,
+      };
+      localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
+    }
+    window.location.href = targetUrl;
   };
 
   // Cancel / Dismiss Modal

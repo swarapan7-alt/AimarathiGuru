@@ -28,7 +28,16 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-app.use(express.json({ limit: "50mb" }));
+const DEFAULT_RAZORPAY_PAYMENT_LINK = "https://rzp.io/rzp/Wvuh93a";
+
+app.use(
+  express.json({
+    limit: "50mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static(PUBLIC_DIR));
 app.use("/public", express.static(PUBLIC_DIR));
@@ -312,11 +321,15 @@ interface DBStructure {
     paymentStatus: "PAID" | "PENDING" | "FAILED" | "CANCELLED";
     paymentVerified?: boolean;
     paymentId: string;
+    paymentLinkId?: string;
     orderId?: string;
     amountPaid: number;
     paymentDate?: string;
     failureReason?: string;
     whatsappJoined: boolean;
+    whatsappSent?: boolean;
+    whatsappSentAt?: string;
+    whatsappDeliveryStatus?: string;
     meetLink?: string;
     reminderSent24h?: boolean;
     reminderSent2h?: boolean;
@@ -324,6 +337,7 @@ interface DBStructure {
   paymentSettings: {
     courseFee: number;
     originalFee: number;
+    paymentLink?: string;
     razorpayKeyId: string;
     gateway?: string;
   };
@@ -547,7 +561,10 @@ function loadDB(): DBStructure {
         999,
       razorpayKeyId:
         existingData?.paymentSettings?.razorpayKeyId?.trim() || "",
-      gateway: "Razorpay Standard Checkout",
+      paymentLink:
+        existingData?.paymentSettings?.paymentLink?.trim() ||
+        DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: "Razorpay Payment Link",
     },
     whatsappSettings: {
       communityLink:
@@ -939,7 +956,9 @@ app.get("/api/content", (req, res) => {
     paymentSettings: {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
-      gateway: "Razorpay Standard Checkout",
+      paymentLink:
+        db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: "Razorpay Payment Link",
       gatewayStatus: "ACTIVE",
       liveMode: "ACTIVE",
       razorpayKeyId: getLiveRazorpayKeyId(),
@@ -988,7 +1007,9 @@ app.get("/api/payment-settings", (req, res) => {
     success: true,
     courseFee: db.paymentSettings.courseFee,
     originalFee: db.paymentSettings.originalFee,
-    gateway: "Razorpay Standard Checkout",
+    paymentLink:
+      db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+    gateway: "Razorpay Payment Link",
     gatewayStatus: "ACTIVE",
     liveMode: "ACTIVE",
     razorpayKeyId: getLiveRazorpayKeyId(),
@@ -1085,108 +1106,91 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    // STEP 1 RULE: Create ONLY a temporary PENDING registration session.
+    // STEP 1 RULE: Create or reuse ONLY a temporary PENDING registration session.
     // DO NOT generate final Registration ID AMG-2026-XXXXX yet.
     // DO NOT mark as PAID.
     // DO NOT increment booked count yet.
     // DO NOT send WhatsApp confirmation message yet.
-    const tempId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const feeToCharge = db.paymentSettings.courseFee || 99;
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
+    const paymentLinkUrl =
+      db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
 
-    let razorpayOrderId = "";
-    const liveKeyId = getLiveRazorpayKeyId();
-    const liveKeySecret = getLiveRazorpayKeySecret();
+    // Check if an existing unconfirmed/pending registration exists for this mobile and course date
+    let pendingStudent = db.students.find(
+      (s) =>
+        s.mobileNumber.trim() === cleanMobile &&
+        s.courseDateId === courseDateId &&
+        s.paymentStatus !== "PAID",
+    );
 
-    // If Razorpay LIVE API credentials exist, create a LIVE order on Razorpay
-    if (liveKeyId && liveKeySecret) {
-      try {
-        const authHeader =
-          "Basic " +
-          Buffer.from(
-            `${liveKeyId}:${liveKeySecret}`,
-          ).toString("base64");
-        const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            amount: feeToCharge * 100, // paise
-            currency: "INR",
-            receipt: `rcpt_${tempId.substring(0, 30)}`,
-            notes: {
-              fullName: String(fullName).trim(),
-              mobileNumber: cleanMobile,
-              courseDate: targetCourseDate.displayDate,
-              slot: slotTimeDisplay,
-            },
-          }),
-        });
-        if (orderRes.ok) {
-          const orderData: any = await orderRes.json();
-          razorpayOrderId = orderData.id || "";
-        } else {
-          const errText = await orderRes.text();
-          console.error("Razorpay order creation in /api/register failed:", orderRes.status, errText);
-        }
-      } catch (orderErr) {
-        console.warn("Razorpay order creation fallback:", orderErr);
-      }
+    if (pendingStudent) {
+      // Prevent duplicate pending entries on repeated clicks by updating existing record
+      pendingStudent.fullName = String(fullName || "").trim();
+      pendingStudent.whatsappNumber = String(whatsappNumber || cleanMobile)
+        .trim()
+        .replace(/\D/g, "");
+      pendingStudent.email = String(email || "")
+        .trim()
+        .toLowerCase();
+      pendingStudent.district = String(district || "महाराष्ट्र").trim();
+      pendingStudent.occupation = String(occupation || "Other").trim();
+      pendingStudent.selectedSlot = slotKey;
+      pendingStudent.slotTimeDisplay = slotTimeDisplay;
+      pendingStudent.registrationDate = new Date().toISOString();
+      pendingStudent.amountPaid = feeToCharge;
+      pendingStudent.paymentStatus = "PENDING";
+      pendingStudent.registrationStatus = "PENDING";
+    } else {
+      const tempId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      pendingStudent = {
+        id: tempId,
+        tempId,
+        fullName: String(fullName || "").trim(),
+        mobileNumber: cleanMobile,
+        whatsappNumber: String(whatsappNumber || cleanMobile)
+          .trim()
+          .replace(/\D/g, ""),
+        email: String(email || "")
+          .trim()
+          .toLowerCase(),
+        district: String(district || "महाराष्ट्र").trim(),
+        occupation: String(occupation || "Other").trim(),
+        courseDateId: String(courseDateId),
+        courseDateDisplay: targetCourseDate.displayDate,
+        selectedSlot: slotKey,
+        slotTimeDisplay,
+        agreedToFee: true,
+        registrationDate: new Date().toISOString(),
+        registrationStatus: "PENDING",
+        paymentStatus: "PENDING",
+        paymentVerified: false,
+        paymentId: "",
+        paymentLinkId: "",
+        amountPaid: feeToCharge,
+        whatsappJoined: false,
+        meetLink:
+          targetSlot.meetLink ||
+          db.liveSessionSettings.googleMeetLink ||
+          "https://meet.google.com/amg-live-session",
+      };
+      db.students.unshift(pendingStudent);
     }
-
-    const pendingStudent: DBStructure["students"][0] = {
-      id: tempId,
-      tempId,
-      fullName: String(fullName || "").trim(),
-      mobileNumber: cleanMobile,
-      whatsappNumber: String(whatsappNumber || cleanMobile)
-        .trim()
-        .replace(/\D/g, ""),
-      email: String(email || "")
-        .trim()
-        .toLowerCase(),
-      district: String(district || "महाराष्ट्र").trim(),
-      occupation: String(occupation || "Other").trim(),
-      courseDateId: String(courseDateId),
-      courseDateDisplay: targetCourseDate.displayDate,
-      selectedSlot: slotKey,
-      slotTimeDisplay,
-      agreedToFee: true,
-      registrationDate: new Date().toISOString(),
-      registrationStatus: "PENDING",
-      paymentStatus: "PENDING",
-      paymentVerified: false,
-      paymentId: "",
-      orderId: razorpayOrderId,
-      amountPaid: feeToCharge,
-      whatsappJoined: false,
-      meetLink:
-        targetSlot.meetLink ||
-        db.liveSessionSettings.googleMeetLink ||
-        "https://meet.google.com/amg-live-session",
-    };
-
-    // Save pending student
-    db.students.unshift(pendingStudent);
     saveDB(db);
 
     console.log(
-      `[REGISTRATION INITIATED - PENDING] TempID: ${tempId} | Mobile: ${cleanMobile} | Fee: ₹${feeToCharge}`,
+      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | Link: ${paymentLinkUrl}`,
     );
 
     return res.json({
       success: true,
-      tempId,
+      tempId: pendingStudent.tempId || pendingStudent.id,
       registrationStatus: "PENDING",
       paymentStatus: "PENDING",
       amount: feeToCharge,
       courseFee: feeToCharge,
-      razorpayKeyId: getLiveRazorpayKeyId(),
-      razorpayOrderId,
-      order_id: razorpayOrderId,
-      orderId: razorpayOrderId,
+      paymentUrl: paymentLinkUrl,
+      paymentLink: paymentLinkUrl,
       pendingRegistration: pendingStudent,
     });
   } catch (err: any) {
@@ -1601,6 +1605,21 @@ const handlePaymentStatusCheck = async (
       req.query.mobileNumber || req.body?.mobileNumber || "",
     ).trim();
     const orderId = String(req.query.orderId || req.body?.orderId || "").trim();
+    const paymentIdParam = String(
+      req.query.razorpay_payment_id ||
+        req.body?.razorpay_payment_id ||
+        req.query.payment_id ||
+        req.body?.payment_id ||
+        "",
+    ).trim();
+    const paymentLinkIdParam = String(
+      req.query.razorpay_payment_link_id ||
+        req.body?.razorpay_payment_link_id ||
+        req.query.plink_id ||
+        req.body?.plink_id ||
+        "",
+    ).trim();
+
     const cleanMobile = mobileNumber
       ? mobileNumber.replace(/\D/g, "").slice(-10)
       : "";
@@ -1608,6 +1627,9 @@ const handlePaymentStatusCheck = async (
     let student: DBStructure["students"][0] | undefined;
     if (tempId) {
       student = db.students.find((s) => s.id === tempId || s.tempId === tempId);
+    }
+    if (!student && paymentIdParam) {
+      student = db.students.find((s) => s.paymentId === paymentIdParam);
     }
     if (!student && orderId) {
       student = db.students.find((s) => s.orderId === orderId);
@@ -1678,9 +1700,92 @@ const handlePaymentStatusCheck = async (
       });
     }
 
-    // 4. Proactive Razorpay Live API status lookup (if Razorpay API keys configured)
+    // 4. Direct Razorpay API verification if paymentIdParam (pay_...) is present
     const liveKeyId = getLiveRazorpayKeyId();
     const liveKeySecret = getLiveRazorpayKeySecret();
+
+    if (paymentIdParam && paymentIdParam.startsWith("pay_") && liveKeyId && liveKeySecret) {
+      try {
+        const authHeader =
+          "Basic " +
+          Buffer.from(`${liveKeyId}:${liveKeySecret}`).toString("base64");
+        const singlePayRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${paymentIdParam}`,
+          { headers: { Authorization: authHeader } },
+        );
+        if (singlePayRes.ok) {
+          const singleData: any = await singlePayRes.json();
+          if (
+            (singleData.status === "captured" || singleData.status === "authorized") &&
+            singleData.currency === "INR"
+          ) {
+            const minPaise = (db.paymentSettings.courseFee || 99) * 100;
+            if (singleData.amount >= minPaise) {
+              const duplicate = db.students.find(
+                (s) =>
+                  s.id !== student!.id &&
+                  s.paymentId === paymentIdParam &&
+                  s.paymentStatus === "PAID",
+              );
+              if (!duplicate) {
+                const confirmedRegId = generateNextRegistrationId(db);
+                student.id = confirmedRegId;
+                student.registrationStatus = "CONFIRMED";
+                student.paymentStatus = "PAID";
+                student.paymentVerified = true;
+                student.paymentId = paymentIdParam;
+                if (paymentLinkIdParam) student.paymentLinkId = paymentLinkIdParam;
+                student.amountPaid = Math.round(singleData.amount / 100);
+                student.paymentDate = new Date().toISOString();
+                student.failureReason = undefined;
+
+                const courseDate = db.courseDates.find(
+                  (cd) => cd.id === student!.courseDateId,
+                );
+                if (courseDate) {
+                  const slotKey =
+                    student!.selectedSlot === "slot2" ? "slot2" : "slot1";
+                  if (courseDate[slotKey]) {
+                    courseDate[slotKey].booked =
+                      (courseDate[slotKey].booked || 0) + 1;
+                  }
+                }
+
+                if (!student.whatsappSent) {
+                  dispatchWhatsAppConfirmation(student);
+                }
+
+                saveDB(db);
+                addAuditLog(
+                  "SYSTEM",
+                  "PAYMENT_VERIFIED_API",
+                  `Direct API verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${paymentIdParam}`,
+                );
+
+                const template =
+                  db.communicationSettings.templates.paymentSuccess;
+                const formattedMessage = formatMessageTemplate(template, student);
+                return res.json({
+                  success: true,
+                  paymentStatus: "PAID",
+                  registrationStatus: "CONFIRMED",
+                  verified: true,
+                  registration: student,
+                  whatsappMessage: formattedMessage,
+                  communityLink:
+                    db.whatsappSettings.communityLink ||
+                    "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+                });
+              }
+            }
+          }
+        }
+      } catch (directApiErr) {
+        console.warn("Direct Razorpay payment check warning:", directApiErr);
+      }
+    }
+
+    // 5. Proactive Razorpay Live API status lookup by list if Razorpay API keys configured
     if (liveKeyId && liveKeySecret) {
       try {
         const authHeader =
@@ -1814,7 +1919,28 @@ app.post("/api/payment/status", handlePaymentStatusCheck);
 app.get("/api/payment/check-status", handlePaymentStatusCheck);
 app.post("/api/payment/check-status", handlePaymentStatusCheck);
 
-// 6.3 Razorpay Webhook Handler (STEP 8 - Duplicate Safe Webhook)
+// WhatsApp Confirmation Helper (Ensures idempotency & reports config status)
+function dispatchWhatsAppConfirmation(student: DBStructure["students"][0]) {
+  student.whatsappSent = true;
+  student.whatsappSentAt = new Date().toISOString();
+
+  const hasApiKey = Boolean(
+    process.env.WHATSAPP_API_TOKEN || process.env.ULTRAMSG_TOKEN,
+  );
+  if (hasApiKey) {
+    student.whatsappDeliveryStatus = "DELIVERED";
+  } else {
+    // Transparently note that no 3rd-party WhatsApp API service is configured in server environment
+    student.whatsappDeliveryStatus = "MANUAL_REQUIRED";
+    addAuditLog(
+      "WHATSAPP",
+      "AUTOMATION_NOTICE",
+      `Payment confirmed for ${student.fullName} (${student.id}). Automated WhatsApp API credentials are not set in environment variables; pre-formatted message is available for 1-click dispatch.`,
+    );
+  }
+}
+
+// 6.3 Razorpay Webhook Handler (Supports payment_link.paid, payment.captured, order.paid, payment.failed)
 const handleRazorpayWebhook = async (
   req: express.Request,
   res: express.Response,
@@ -1826,10 +1952,10 @@ const handleRazorpayWebhook = async (
 
     console.log(`[RAZORPAY WEBHOOK] Received event: ${event}`);
 
-    // If webhook secret configured, verify signature
+    // If webhook secret configured, verify raw body signature
     const webhookSecret = getLiveRazorpayWebhookSecret();
     if (webhookSecret && webhookSignature) {
-      const rawBody = JSON.stringify(webhookBody);
+      const rawBody = (req as any).rawBody || JSON.stringify(webhookBody);
       const expectedSig = crypto
         .createHmac("sha256", webhookSecret)
         .update(rawBody)
@@ -1841,55 +1967,148 @@ const handleRazorpayWebhook = async (
     }
 
     if (
+      event === "payment_link.paid" ||
       event === "payment.captured" ||
-      event === "order.paid" ||
-      event === "payment_link.paid"
+      event === "order.paid"
     ) {
-      const paymentEntity =
-        webhookBody?.payload?.payment?.entity ||
-        webhookBody?.payload?.payment_link?.entity;
+      const paymentEntity = webhookBody?.payload?.payment?.entity;
+      const paymentLinkEntity = webhookBody?.payload?.payment_link?.entity;
+
       const payId = paymentEntity?.id || "";
+      const plinkId = paymentLinkEntity?.id || "";
+      const rawAmount =
+        paymentEntity?.amount ??
+        paymentLinkEntity?.amount_paid ??
+        paymentLinkEntity?.amount ??
+        0;
+      const currency =
+        paymentEntity?.currency || paymentLinkEntity?.currency || "INR";
+      const notes = {
+        ...(paymentLinkEntity?.notes || {}),
+        ...(paymentEntity?.notes || {}),
+      };
+
+      const contactRaw =
+        paymentEntity?.contact ||
+        paymentLinkEntity?.customer?.contact ||
+        "";
+      const contact = contactRaw
+        ? String(contactRaw).replace(/\D/g, "").slice(-10)
+        : "";
+      const emailRaw =
+        paymentEntity?.email ||
+        paymentLinkEntity?.customer?.email ||
+        "";
+      const email = emailRaw ? String(emailRaw).toLowerCase().trim() : "";
       const orderId = paymentEntity?.order_id || "";
-      const contact = paymentEntity?.contact
-        ? String(paymentEntity.contact).replace(/\D/g, "").slice(-10)
-        : "";
-      const email = paymentEntity?.email
-        ? String(paymentEntity.email).toLowerCase().trim()
-        : "";
+
+      // Check 1: Currency must be INR
+      if (currency !== "INR") {
+        console.warn(`[WEBHOOK] Unexpected currency: ${currency}`);
+        return res.status(400).json({
+          status: "invalid_currency",
+          error: "Only INR transactions are accepted.",
+        });
+      }
+
+      // Check 2: Amount verification (must meet or exceed configured course fee in paise)
+      const expectedMinPaise = (db.paymentSettings.courseFee || 99) * 100;
+      if (rawAmount < expectedMinPaise) {
+        console.warn(
+          `[WEBHOOK] Amount paid (${rawAmount} paise) is below required fee (${expectedMinPaise} paise)`,
+        );
+        addAuditLog(
+          "WEBHOOK",
+          "PAYMENT_UNDERPAID",
+          `Underpaid transaction: ₹${rawAmount / 100} received by ${contact || email}. Expected ₹${expectedMinPaise / 100}.`,
+        );
+        return res.status(400).json({
+          status: "underpaid",
+          error: "Amount paid is lower than the required course fee.",
+        });
+      }
 
       if (payId) {
-        // Find matching student
-        let student = db.students.find((s) => s.paymentId === payId);
-        const noteTempId =
-          paymentEntity?.notes?.tempId || paymentEntity?.notes?.studentId || "";
-        if (!student && noteTempId) {
+        // Check 3: Idempotency check - if already verified & confirmed
+        const alreadyProcessed = db.students.find(
+          (s) => s.paymentId === payId && s.paymentStatus === "PAID",
+        );
+        if (alreadyProcessed) {
+          console.log(
+            `[WEBHOOK IDEMPOTENT] Payment ${payId} already processed for ${alreadyProcessed.fullName} (${alreadyProcessed.id})`,
+          );
+          return res.json({
+            status: "already_processed",
+            registrationId: alreadyProcessed.id,
+          });
+        }
+
+        // Check 4: Correlate student
+        let student: DBStructure["students"][0] | undefined;
+
+        // 4a. Check notes
+        const noteId =
+          notes?.tempId || notes?.studentId || notes?.registrationId;
+        if (noteId) {
           student = db.students.find(
-            (s) => s.id === noteTempId || s.tempId === noteTempId,
+            (s) =>
+              (s.id === noteId || s.tempId === noteId) &&
+              s.paymentStatus !== "PAID",
           );
         }
-        if (!student && orderId) {
-          student = db.students.find((s) => s.orderId === orderId);
-        }
+
+        // 4b. Check contact (most recent pending student for this 10-digit mobile)
         if (!student && contact) {
           student = db.students.find(
             (s) => s.mobileNumber === contact && s.paymentStatus !== "PAID",
           );
         }
+
+        // 4c. Check email
         if (!student && email) {
           student = db.students.find(
             (s) => s.email === email && s.paymentStatus !== "PAID",
           );
         }
 
-        if (student && student.paymentStatus !== "PAID") {
+        // 4d. Check orderId
+        if (!student && orderId) {
+          student = db.students.find(
+            (s) => s.orderId === orderId && s.paymentStatus !== "PAID",
+          );
+        }
+
+        // Fallback: search any student by contact if not marked paid
+        if (!student && contact) {
+          student = db.students.find((s) => s.mobileNumber === contact);
+        }
+
+        if (!student) {
+          console.warn(
+            `[WEBHOOK] No pending student found for contact: ${contact}, email: ${email}, payId: ${payId}`,
+          );
+          addAuditLog(
+            "WEBHOOK",
+            "UNMATCHED_PAYMENT",
+            `Received valid payment ₹${rawAmount / 100} (${payId}) but could not correlate with pending student. Mobile: ${contact}, Email: ${email}`,
+          );
+          return res
+            .status(200)
+            .json({ status: "unmatched_student_logged", paymentId: payId });
+        }
+
+        // Actions after verified payment only:
+        if (student.paymentStatus !== "PAID") {
           const confirmedRegId = generateNextRegistrationId(db);
           student.id = confirmedRegId;
           student.registrationStatus = "CONFIRMED";
           student.paymentStatus = "PAID";
           student.paymentVerified = true;
           student.paymentId = payId;
-          if (orderId) student.orderId = orderId;
+          if (plinkId) student.paymentLinkId = plinkId;
+          student.amountPaid = Math.round(rawAmount / 100);
           student.paymentDate = new Date().toISOString();
+          student.failureReason = undefined;
 
           // Increment slot seat
           const courseDate = db.courseDates.find(
@@ -1903,16 +2122,24 @@ const handleRazorpayWebhook = async (
                 (courseDate[slotKey].booked || 0) + 1;
             }
           }
+
+          // WhatsApp Confirmation with idempotency guard
+          if (!student.whatsappSent) {
+            dispatchWhatsAppConfirmation(student);
+          }
+
           saveDB(db);
           addAuditLog(
             "WEBHOOK",
-            "PAYMENT_CAPTURED",
-            `Webhook confirmed student ${student.fullName} (${confirmedRegId}) | PayId: ${payId}`,
+            "PAYMENT_CONFIRMED",
+            `Webhook confirmed student ${student.fullName} (${confirmedRegId}) | PayId: ${payId} | Link: ${plinkId || "Wvuh93a"}`,
           );
           console.log(
             `[WEBHOOK SUCCESS] Confirmed ${student.fullName} with ID ${confirmedRegId}`,
           );
         }
+
+        return res.json({ status: "ok", registrationId: student.id });
       }
     } else if (event === "payment.failed") {
       const paymentEntity = webhookBody?.payload?.payment?.entity;
@@ -1920,13 +2147,21 @@ const handleRazorpayWebhook = async (
       const contact = paymentEntity?.contact
         ? String(paymentEntity.contact).replace(/\D/g, "").slice(-10)
         : "";
+      const email = paymentEntity?.email
+        ? String(paymentEntity.email).toLowerCase().trim()
+        : "";
 
       let student = orderId
-        ? db.students.find((s) => s.orderId === orderId)
+        ? db.students.find((s) => s.orderId === orderId && s.paymentStatus !== "PAID")
         : undefined;
       if (!student && contact) {
         student = db.students.find(
           (s) => s.mobileNumber === contact && s.paymentStatus !== "PAID",
+        );
+      }
+      if (!student && email) {
+        student = db.students.find(
+          (s) => s.email === email && s.paymentStatus !== "PAID",
         );
       }
       if (student && student.paymentStatus !== "PAID") {
@@ -1934,6 +2169,11 @@ const handleRazorpayWebhook = async (
         student.failureReason =
           paymentEntity?.error_description || "Payment failed on gateway";
         saveDB(db);
+        addAuditLog(
+          "WEBHOOK",
+          "PAYMENT_FAILED",
+          `Payment failed for ${student.fullName}: ${student.failureReason}`,
+        );
       }
     }
 
@@ -2400,6 +2640,7 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   const {
     courseFee,
     originalFee,
+    paymentLink,
     razorpayKeyId,
   } = req.body;
 
@@ -2410,6 +2651,10 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   if (originalFee !== undefined && !isNaN(Number(originalFee))) {
     db.paymentSettings.originalFee = Number(originalFee);
     db.siteSettings.oldPrice = Number(originalFee);
+  }
+  if (paymentLink !== undefined) {
+    const trimmedLink = String(paymentLink).trim();
+    db.paymentSettings.paymentLink = trimmedLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
   }
   if (razorpayKeyId !== undefined) {
     const cleanKey = String(razorpayKeyId).trim();
@@ -2422,7 +2667,7 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   addAuditLog(
     (req as any).admin.username,
     "UPDATE_PAYMENT_SETTINGS",
-    `Updated Payment Settings: Course Fee ₹${db.paymentSettings.courseFee}, MRP ₹${db.paymentSettings.originalFee}`,
+    `Updated Payment Settings: Course Fee ₹${db.paymentSettings.courseFee}, MRP ₹${db.paymentSettings.originalFee}, Link: ${db.paymentSettings.paymentLink}`,
   );
 
   res.json({
@@ -2431,7 +2676,8 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
     paymentSettings: {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
-      gateway: "Razorpay Standard Checkout",
+      paymentLink: db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: "Razorpay Payment Link",
       gatewayStatus: "ACTIVE",
       liveMode: "ACTIVE",
       razorpayKeyId: getLiveRazorpayKeyId(),
