@@ -23,7 +23,7 @@
         "startTime": "11:00 AM",
         "endTime": "1:00 PM",
         "capacity": 100,
-        "booked": 19,
+        "booked": 20,
         "enabled": true,
         "meetLink": "https://meet.google.com/amg-slot1-live"
       },
@@ -773,30 +773,6 @@
       "whatsappDeliveryStatus": "MANUAL_REQUIRED"
     },
     {
-      "id": "sess_1789491064105_nubij5z",
-      "tempId": "sess_1789491064105_nubij5z",
-      "fullName": "Test Student Pay",
-      "mobileNumber": "9876543210",
-      "whatsappNumber": "9876543210",
-      "email": "testpay@example.com",
-      "district": "महाराष्ट्र",
-      "occupation": "Other",
-      "courseDateId": "cd_2026_09_20",
-      "courseDateDisplay": "Sunday, 20 September 2026",
-      "selectedSlot": "slot1",
-      "slotTimeDisplay": "11:00 AM – 1:00 PM",
-      "agreedToFee": true,
-      "registrationDate": "2026-10-21T05:49:03.480Z",
-      "registrationStatus": "PENDING",
-      "paymentStatus": "PENDING",
-      "paymentVerified": false,
-      "paymentId": "",
-      "orderId": "order_TqRrxTklnCsKsC",
-      "amountPaid": 149,
-      "whatsappJoined": false,
-      "meetLink": "https://meet.google.com/amg-slot1-live"
-    },
-    {
       "id": "AMG-2026-00004",
       "tempId": "sess_1789315923760_r63m2nr",
       "fullName": "Test Student One",
@@ -1106,6 +1082,21 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "log_1793206625207_692",
+      "timestamp": "2026-10-28T16:57:05.207Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1793206608244_110",
+      "timestamp": "2026-10-28T16:56:48.244Z",
+      "adminUsername": "WEBHOOK",
+      "action": "PAYMENT_CONFIRMED",
+      "details": "Webhook confirmed student Ganesh Patil (AMG-2026-00017) | PayId: pay_test_1793206608119 | Link: plink_TtOyNVhwscXvGb"
+    },
     {
       "id": "log_1793200952418_474",
       "timestamp": "2026-10-28T15:22:32.418Z",

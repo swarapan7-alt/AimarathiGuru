@@ -63,6 +63,7 @@ export interface RegistrationRecord extends RegistrationFormData {
   paymentVerified?: boolean;
   paymentId: string;
   paymentLinkId?: string;
+  paymentUrl?: string;
   orderId?: string;
   amountPaid: number; // 99
   paymentDate?: string;

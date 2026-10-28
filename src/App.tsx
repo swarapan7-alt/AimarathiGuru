@@ -176,6 +176,8 @@ export default function App() {
     registration?: RegistrationRecord;
     razorpayKeyId?: string;
     razorpayOrderId?: string;
+    paymentUrl?: string;
+    paymentLinkId?: string;
   } | null>(null);
 
   const scrollToRegister = () => {
@@ -295,6 +297,8 @@ export default function App() {
           courseDateDisplay: data.courseDateDisplay,
           slotTimeDisplay: data.slotTimeDisplay,
           amount: resData.amount || 99,
+          paymentUrl: resData.paymentUrl,
+          paymentLinkId: resData.paymentLinkId,
         };
         localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
 
@@ -304,6 +308,8 @@ export default function App() {
           registration: resData.pendingRegistration,
           razorpayKeyId: resData.keyId || paymentSettings?.razorpayKeyId,
           razorpayOrderId: resData.orderId || resData.order_id,
+          paymentUrl: resData.paymentUrl,
+          paymentLinkId: resData.paymentLinkId,
         });
         setShowPaymentModal(true);
       } else {
@@ -422,7 +428,7 @@ export default function App() {
           onPaymentSuccess={handlePaymentSuccess}
           fee={courseFee}
           oldPrice={originalFee}
-          paymentLink={paymentSettings?.paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
+          paymentLink={pendingSession?.paymentUrl || (pendingSession?.registration as any)?.paymentUrl || paymentSettings?.paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
           gateway={paymentSettings?.gateway}
         />
       )}

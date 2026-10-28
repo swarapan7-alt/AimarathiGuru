@@ -70,6 +70,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [activeGateway, setActiveGateway] = useState<string>(gateway || 'Razorpay Payment Link');
   const [activePaymentLink, setActivePaymentLink] = useState<string>(paymentLink || 'https://rzp.io/rzp/Wvuh93a');
 
+  // Update activePaymentLink when unique prop arrives
+  useEffect(() => {
+    if (paymentLink && paymentLink !== 'https://rzp.io/rzp/Wvuh93a') {
+      setActivePaymentLink(paymentLink);
+    }
+  }, [paymentLink]);
+
   // Load latest payment settings from server
   useEffect(() => {
     fetch('/api/payment-settings')
@@ -77,7 +84,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       .then((data) => {
         if (data.success) {
           if (data.gateway) setActiveGateway(data.gateway);
-          if (data.paymentLink) setActivePaymentLink(data.paymentLink);
+          if (data.paymentLink && (!paymentLink || paymentLink === 'https://rzp.io/rzp/Wvuh93a')) {
+            setActivePaymentLink(data.paymentLink);
+          }
           if (data.razorpayKeyId) setEffectiveKeyId(data.razorpayKeyId);
         }
       })
@@ -89,7 +98,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (razorpayOrderId) {
       setEffectiveOrderId(razorpayOrderId);
     }
-  }, [razorpayKeyId, razorpayOrderId]);
+  }, [razorpayKeyId, razorpayOrderId, paymentLink]);
 
   // Is Payment Link mode active?
   const isPaymentLinkMode = activeGateway === 'Razorpay Payment Link' || !effectiveKeyId;
@@ -173,9 +182,33 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   // 1. Payment Link Flow
-  const handleOpenPaymentLink = () => {
-    const link = (activePaymentLink || paymentLink || '').trim();
-    if (!link || (!link.startsWith('http://') && !link.startsWith('https://'))) {
+  const handleOpenPaymentLink = async () => {
+    setIsLaunching(true);
+    setErrorMessage('');
+
+    let linkToOpen = (activePaymentLink || paymentLink || '').trim();
+
+    // If active link is default or if we have an active session, ensure we request a fresh unique payment link from server
+    if (activeTempId && (!linkToOpen || linkToOpen.includes('Wvuh93a') || linkToOpen.includes('default'))) {
+      try {
+        const plinkRes = await fetch('/api/payment/create-payment-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tempId: activeTempId, mobileNumber: studentMobile }),
+        });
+        const plinkData = await plinkRes.json();
+        if (plinkRes.ok && plinkData.success && plinkData.paymentUrl) {
+          linkToOpen = plinkData.paymentUrl;
+          setActivePaymentLink(plinkData.paymentUrl);
+        }
+      } catch (linkErr) {
+        console.warn('Error fetching fresh payment link:', linkErr);
+      }
+    }
+
+    setIsLaunching(false);
+
+    if (!linkToOpen || (!linkToOpen.startsWith('http://') && !linkToOpen.startsWith('https://'))) {
       setErrorMessage('अधिकृत Razorpay Payment Link उपलब्ध नाही. कृपया Admin Settings मध्ये वैध लिंक सेट करा.');
       setPaymentState('FAILED');
       return;
@@ -184,9 +217,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setErrorMessage('');
     // Open Payment Link in a new tab / window
     try {
-      window.open(link, '_blank');
+      window.open(linkToOpen, '_blank');
     } catch (e) {
-      window.location.href = link;
+      window.location.href = linkToOpen;
     }
 
     // Immediately switch to checking / monitoring state so polling starts

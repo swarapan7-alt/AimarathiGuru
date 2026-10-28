@@ -322,6 +322,7 @@ interface DBStructure {
     paymentVerified?: boolean;
     paymentId: string;
     paymentLinkId?: string;
+    paymentUrl?: string;
     orderId?: string;
     amountPaid: number;
     paymentDate?: string;
@@ -1387,6 +1388,98 @@ app.get("/api/payment-settings", (req, res) => {
   });
 });
 
+// Helper: Generate unique Razorpay Payment Link per registration session
+async function createRazorpayPaymentLinkForStudent(
+  student: DBStructure["students"][0],
+  hostUrl: string,
+): Promise<{ success: boolean; paymentUrl: string; paymentLinkId: string; error?: string }> {
+  const liveKeyId = getLiveRazorpayKeyId();
+  const liveKeySecret = getLiveRazorpayKeySecret();
+  const fallbackUrl = db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
+
+  if (!liveKeyId || !liveKeySecret) {
+    return {
+      success: true,
+      paymentUrl: fallbackUrl,
+      paymentLinkId: "",
+    };
+  }
+
+  const feeToCharge = db.paymentSettings.courseFee || 99;
+  const cleanMobile = student.mobileNumber.replace(/\D/g, "").slice(-10);
+  const formattedContact = `+91${cleanMobile}`;
+  const callbackUrl = `${hostUrl}/api/payment/callback?tempId=${student.tempId || student.id}&source=plink`;
+
+  try {
+    const authHeader =
+      "Basic " + Buffer.from(`${liveKeyId}:${liveKeySecret}`).toString("base64");
+
+    const plinkRes = await fetch("https://api.razorpay.com/v1/payment_links", {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: feeToCharge * 100,
+        currency: "INR",
+        accept_partial: false,
+        reference_id: student.tempId || student.id,
+        description: `AI Marathi Guru Live Workshop - ${student.courseDateDisplay || "Live Workshop"} (${student.slotTimeDisplay || "Slot"})`,
+        customer: {
+          name: student.fullName || "Student",
+          contact: formattedContact,
+          email: student.email || `${cleanMobile}@aimarathiguru.com`,
+        },
+        notify: {
+          sms: false,
+          email: false,
+        },
+        reminder_enable: false,
+        notes: {
+          tempId: student.tempId || student.id,
+          mobileNumber: cleanMobile,
+          courseDate: student.courseDateDisplay || "",
+          slot: student.slotTimeDisplay || "",
+          studentName: student.fullName || "",
+        },
+        callback_url: callbackUrl,
+        callback_method: "get",
+      }),
+    });
+
+    if (plinkRes.ok) {
+      const plinkData: any = await plinkRes.json();
+      const paymentLinkId = plinkData.id;
+      const paymentUrl = plinkData.short_url;
+      student.paymentLinkId = paymentLinkId;
+      student.paymentUrl = paymentUrl;
+      saveDB(db);
+      console.log(
+        `[RAZORPAY UNIQUE LINK CREATED] TempID: ${student.tempId || student.id} | LinkID: ${paymentLinkId} | URL: ${paymentUrl}`,
+      );
+      return { success: true, paymentUrl, paymentLinkId };
+    } else {
+      const errText = await plinkRes.text();
+      console.error("[RAZORPAY LINK ERROR]", plinkRes.status, errText);
+      return {
+        success: false,
+        paymentUrl: fallbackUrl,
+        paymentLinkId: "",
+        error: `Razorpay API returned ${plinkRes.status}: ${errText}`,
+      };
+    }
+  } catch (err: any) {
+    console.error("[RAZORPAY LINK EXCEPTION]", err);
+    return {
+      success: false,
+      paymentUrl: fallbackUrl,
+      paymentLinkId: "",
+      error: err.message || "Failed to create payment link",
+    };
+  }
+}
+
 // 5. Student Registration Flow (STEP 1: Create PENDING Session Only)
 app.post("/api/register", async (req, res) => {
   try {
@@ -1484,7 +1577,7 @@ app.post("/api/register", async (req, res) => {
     // DO NOT send WhatsApp confirmation message yet.
     const feeToCharge = db.paymentSettings.courseFee || 99;
     const slotTimeDisplay = `${targetSlot.startTime} – ${targetSlot.endTime}`;
-    const paymentLinkUrl =
+    const defaultPaymentLinkUrl =
       db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
 
     // Check if an existing unconfirmed/pending registration exists for this mobile
@@ -1539,6 +1632,7 @@ app.post("/api/register", async (req, res) => {
         paymentVerified: false,
         paymentId: "",
         paymentLinkId: "",
+        paymentUrl: "",
         amountPaid: feeToCharge,
         whatsappJoined: false,
         meetLink:
@@ -1549,11 +1643,17 @@ app.post("/api/register", async (req, res) => {
       db.students.unshift(pendingStudent);
     }
 
-    // Create Razorpay Order on server side before returning for Standard Checkout
-    let razorpayOrderId = "";
+    const hostUrl = `${req.protocol}://${req.get("host")}`;
     const liveKeyId = getLiveRazorpayKeyId();
     const liveKeySecret = getLiveRazorpayKeySecret();
 
+    // 1. Generate unique fresh Razorpay Payment Link per registration
+    const linkResult = await createRazorpayPaymentLinkForStudent(pendingStudent, hostUrl);
+    const finalPaymentUrl = linkResult.paymentUrl || defaultPaymentLinkUrl;
+    const finalPaymentLinkId = linkResult.paymentLinkId || "";
+
+    // 2. Create Razorpay Order on server side before returning for Standard Checkout
+    let razorpayOrderId = "";
     if (liveKeyId && liveKeySecret) {
       try {
         const authHeader =
@@ -1573,6 +1673,8 @@ app.post("/api/register", async (req, res) => {
               tempId: pendingStudent.tempId || pendingStudent.id,
               mobileNumber: cleanMobile,
               fullName: String(fullName || "").trim(),
+              courseDate: targetCourseDate.displayDate,
+              slot: slotTimeDisplay,
             },
           }),
         });
@@ -1593,7 +1695,7 @@ app.post("/api/register", async (req, res) => {
     saveDB(db);
 
     console.log(
-      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | OrderID: ${razorpayOrderId} | Fee: ₹${feeToCharge} | Gateway: ${db.paymentSettings.gateway || "Razorpay Payment Link"}`,
+      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | LinkID: ${finalPaymentLinkId} | OrderID: ${razorpayOrderId} | Fee: ₹${feeToCharge} | Gateway: ${db.paymentSettings.gateway || "Razorpay Payment Link"}`,
     );
 
     return res.json({
@@ -1607,8 +1709,9 @@ app.post("/api/register", async (req, res) => {
       orderId: razorpayOrderId,
       order_id: razorpayOrderId,
       keyId: liveKeyId,
-      paymentUrl: paymentLinkUrl,
-      paymentLink: paymentLinkUrl,
+      paymentUrl: finalPaymentUrl,
+      paymentLink: finalPaymentUrl,
+      paymentLinkId: finalPaymentLinkId,
       pendingRegistration: pendingStudent,
       communityLink: db.whatsappSettings.communityLink,
     });
@@ -1619,6 +1722,63 @@ app.post("/api/register", async (req, res) => {
       .json({
         error: "नोंदणी प्रक्रियेत समस्या आली. कृपया पुन्हा प्रयत्न करा.",
       });
+  }
+});
+
+// 5.0 Create or retrieve fresh Payment Link for student on demand
+app.post("/api/payment/create-payment-link", async (req, res) => {
+  try {
+    const { tempId, mobileNumber } = req.body;
+    const lookupKey = tempId || "";
+    const cleanMobile = mobileNumber
+      ? String(mobileNumber).trim().replace(/\D/g, "").slice(-10)
+      : "";
+
+    let student: DBStructure["students"][0] | undefined;
+    if (lookupKey) {
+      student = db.students.find(
+        (s) => s.id === lookupKey || s.tempId === lookupKey,
+      );
+    }
+    if (!student && cleanMobile) {
+      student = db.students.find(
+        (s) => s.mobileNumber === cleanMobile && s.paymentStatus !== "PAID",
+      );
+    }
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: "नोंदणी सेशन सापडले नाही. कृपया पुन्हा फॉर्म भरा.",
+      });
+    }
+
+    if (student.paymentStatus === "PAID") {
+      return res.json({
+        success: true,
+        alreadyPaid: true,
+        paymentStatus: "PAID",
+        registrationStatus: "CONFIRMED",
+        registration: student,
+      });
+    }
+
+    const hostUrl = `${req.protocol}://${req.get("host")}`;
+    const result = await createRazorpayPaymentLinkForStudent(student, hostUrl);
+
+    return res.json({
+      success: true,
+      paymentUrl: result.paymentUrl,
+      paymentLinkId: result.paymentLinkId,
+      tempId: student.tempId || student.id,
+      amount: (db.paymentSettings.courseFee || 99) * 100,
+    });
+  } catch (err: any) {
+    console.error("create-payment-link error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "पेमेंट लिंक तयार करता आली नाही. कृपया पुन्हा प्रयत्न करा.",
+    });
   }
 });
 
@@ -1950,28 +2110,58 @@ const handlePaymentCallback = async (req: express.Request, res: express.Response
       req.query.order_id ||
       ""
     ) as string;
+    const razorpay_payment_link_id = (
+      req.body?.razorpay_payment_link_id ||
+      req.query.razorpay_payment_link_id ||
+      req.body?.plink_id ||
+      req.query.plink_id ||
+      ""
+    ) as string;
+    const tempId = (
+      req.query.tempId ||
+      req.body?.tempId ||
+      req.query.razorpay_payment_link_reference_id ||
+      req.body?.razorpay_payment_link_reference_id ||
+      ""
+    ) as string;
+    const razorpay_payment_link_status = (
+      req.body?.razorpay_payment_link_status ||
+      req.query.razorpay_payment_link_status ||
+      ""
+    ) as string;
 
     console.log(
-      `[PAYMENT CALLBACK] Processing callback: payId=${razorpay_payment_id}, orderId=${razorpay_order_id}`,
+      `[PAYMENT CALLBACK] Processing callback: payId=${razorpay_payment_id}, linkId=${razorpay_payment_link_id}, tempId=${tempId}, linkStatus=${razorpay_payment_link_status}`,
     );
 
-    if (!razorpay_payment_id) {
-      return res.redirect("/#register");
-    }
-
     // Correlate student
-    let student = db.students.find((s) => s.paymentId === razorpay_payment_id);
+    let student: DBStructure["students"][0] | undefined;
+    if (tempId) {
+      student = db.students.find((s) => s.tempId === tempId || s.id === tempId);
+    }
+    if (!student && razorpay_payment_link_id) {
+      student = db.students.find((s) => s.paymentLinkId === razorpay_payment_link_id);
+    }
+    if (!student && razorpay_payment_id) {
+      student = db.students.find((s) => s.paymentId === razorpay_payment_id);
+    }
     if (!student && razorpay_order_id) {
       student = db.students.find((s) => s.orderId === razorpay_order_id);
     }
 
+    const payId =
+      razorpay_payment_id ||
+      (razorpay_payment_link_id ? `pay_${razorpay_payment_link_id.replace("plink_", "")}` : `pay_${Date.now()}`);
+
     if (student) {
       if (student.paymentStatus !== "PAID") {
-        student.id = generateNextRegistrationId(db);
+        const confirmedRegId = generateNextRegistrationId(db);
+        student.id = confirmedRegId;
         student.registrationStatus = "CONFIRMED";
         student.paymentStatus = "PAID";
         student.paymentVerified = true;
-        student.paymentId = razorpay_payment_id;
+        student.paymentId = payId;
+        if (razorpay_payment_link_id) student.paymentLinkId = razorpay_payment_link_id;
         student.paymentDate = new Date().toISOString();
         student.failureReason = undefined;
 
@@ -1988,15 +2178,24 @@ const handlePaymentCallback = async (req: express.Request, res: express.Response
         }
         await sendWhatsAppConfirmation(student);
         saveDB(db);
+        addAuditLog(
+          "CALLBACK",
+          "PAYMENT_CONFIRMED",
+          `Payment callback confirmed student ${student.fullName} (${confirmedRegId}) | PayID: ${payId} | LinkID: ${razorpay_payment_link_id}`,
+        );
       }
       return res.redirect(
-        `/payment-success?payment_id=${razorpay_payment_id}&order_id=${razorpay_order_id}&reg_id=${student.id}&status=PAID`,
+        `/payment-success?payment_id=${payId}&order_id=${razorpay_order_id}&reg_id=${student.id}&status=PAID&tempId=${student.tempId || student.id}`,
       );
     }
 
-    return res.redirect(
-      `/payment-success?payment_id=${razorpay_payment_id}&order_id=${razorpay_order_id}&status=PAID`,
-    );
+    if (razorpay_payment_id || razorpay_payment_link_id) {
+      return res.redirect(
+        `/payment-success?payment_id=${payId}&order_id=${razorpay_order_id}&status=PAID`,
+      );
+    }
+
+    return res.redirect("/#register");
   } catch (cbErr) {
     console.error("Payment callback error:", cbErr);
     return res.redirect("/#register?error=payment_callback_failed");
@@ -2281,6 +2480,92 @@ const handlePaymentStatusCheck = async (
       }
     }
 
+    // 4B. Direct Razorpay Payment Link Live Verification
+    const targetPlinkId = paymentLinkIdParam || student.paymentLinkId;
+    if (targetPlinkId && targetPlinkId.startsWith("plink_") && liveKeyId && liveKeySecret) {
+      try {
+        const authHeader =
+          "Basic " + Buffer.from(`${liveKeyId}:${liveKeySecret}`).toString("base64");
+        const plinkRes = await fetch(
+          `https://api.razorpay.com/v1/payment_links/${targetPlinkId}`,
+          { headers: { Authorization: authHeader } },
+        );
+        if (plinkRes.ok) {
+          const plinkData: any = await plinkRes.json();
+          if (plinkData.status === "paid") {
+            const linkPayments = Array.isArray(plinkData.payments) ? plinkData.payments : [];
+            const firstPay = linkPayments[0];
+            const payId =
+              firstPay?.payment_id ||
+              firstPay?.id ||
+              `pay_${plinkData.id.replace("plink_", "")}`;
+            const amountPaidPaise =
+              plinkData.amount_paid ||
+              firstPay?.amount ||
+              (db.paymentSettings.courseFee || 99) * 100;
+
+            const duplicate = db.students.find(
+              (s) =>
+                s.id !== student!.id &&
+                s.paymentId === payId &&
+                s.paymentStatus === "PAID",
+            );
+            if (!duplicate) {
+              const confirmedRegId = generateNextRegistrationId(db);
+              student.id = confirmedRegId;
+              student.registrationStatus = "CONFIRMED";
+              student.paymentStatus = "PAID";
+              student.paymentVerified = true;
+              student.paymentId = payId;
+              student.paymentLinkId = targetPlinkId;
+              student.amountPaid = Math.round(amountPaidPaise / 100);
+              student.paymentDate = new Date().toISOString();
+              student.failureReason = undefined;
+
+              const courseDate = db.courseDates.find(
+                (cd) => cd.id === student!.courseDateId,
+              );
+              if (courseDate) {
+                const slotKey =
+                  student!.selectedSlot === "slot2" ? "slot2" : "slot1";
+                if (courseDate[slotKey]) {
+                  courseDate[slotKey].booked =
+                    (courseDate[slotKey].booked || 0) + 1;
+                }
+              }
+
+              if (!student.whatsappSent) {
+                await sendWhatsAppConfirmation(student);
+              }
+
+              saveDB(db);
+              addAuditLog(
+                "SYSTEM",
+                "PAYMENT_VERIFIED_PLINK",
+                `Direct Payment Link API verified payment for ${student.fullName} (${confirmedRegId}) | LinkID: ${targetPlinkId} | PayID: ${payId}`,
+              );
+
+              const template = db.communicationSettings.templates.paymentSuccess;
+              const formattedMessage = formatMessageTemplate(template, student);
+              return res.json({
+                success: true,
+                paymentStatus: "PAID",
+                registrationStatus: "CONFIRMED",
+                verified: true,
+                registration: student,
+                whatsappMessage: formattedMessage,
+                communityLink:
+                  db.whatsappSettings.communityLink ||
+                  "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+              });
+            }
+          }
+        }
+      } catch (plinkCheckErr) {
+        console.warn("Direct Razorpay payment link check warning:", plinkCheckErr);
+      }
+    }
+
     // 5. Proactive Razorpay Live API status lookup by list if Razorpay API keys configured
     if (liveKeyId && liveKeySecret) {
       try {
@@ -2539,6 +2824,21 @@ const handleRazorpayWebhook = async (
           );
         }
 
+        // 4a2. Check plinkId and paymentLink reference_id
+        if (!student && plinkId) {
+          student = db.students.find(
+            (s) => s.paymentLinkId === plinkId && s.paymentStatus !== "PAID",
+          );
+        }
+        if (!student && paymentLinkEntity?.reference_id) {
+          student = db.students.find(
+            (s) =>
+              (s.tempId === paymentLinkEntity.reference_id ||
+                s.id === paymentLinkEntity.reference_id) &&
+              s.paymentStatus !== "PAID",
+          );
+        }
+
         // 4b. Check contact (most recent pending student for this 10-digit mobile)
         if (!student && contact) {
           student = db.students.find(
@@ -2668,6 +2968,7 @@ const handleRazorpayWebhook = async (
 
 app.post("/api/payment/webhook", handleRazorpayWebhook);
 app.post("/api/razorpay-webhook", handleRazorpayWebhook);
+app.post("/api/webhook/razorpay", handleRazorpayWebhook);
 
 // 7. Student Lookup
 app.get("/api/lookup/:query", (req, res) => {
