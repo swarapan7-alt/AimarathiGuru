@@ -32,6 +32,7 @@ interface PaymentModalProps {
   fee?: number;
   oldPrice?: number;
   paymentLink?: string;
+  gateway?: string;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -45,6 +46,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   fee = 99,
   oldPrice = 999,
   paymentLink = 'https://rzp.io/rzp/Wvuh93a',
+  gateway = 'Razorpay Payment Link',
 }) => {
   const [paymentState, setPaymentState] = useState<
     'IDLE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
@@ -55,43 +57,49 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
   const [confirmedWhatsappMsg, setConfirmedWhatsappMsg] = useState('');
 
-  const targetReg = registration || (formData as any);
-  const studentName = targetReg?.fullName || '';
-  const studentMobile = targetReg?.mobileNumber || '';
-  const studentDate = targetReg?.courseDateDisplay || '';
-  const studentSlot = targetReg?.slotTimeDisplay || '';
+  // Always prioritize formData fresh date and user details over stale pending registration cache
+  const targetReg = (formData as any) || registration;
+  const studentName = (formData as any)?.fullName || targetReg?.fullName || '';
+  const studentMobile = (formData as any)?.mobileNumber || targetReg?.mobileNumber || '';
+  const studentDate = (formData as any)?.courseDateDisplay || targetReg?.courseDateDisplay || '';
+  const studentSlot = (formData as any)?.slotTimeDisplay || targetReg?.slotTimeDisplay || '';
   const activeTempId = tempId || targetReg?.tempId || targetReg?.id || '';
 
   const [effectiveKeyId, setEffectiveKeyId] = useState<string>(razorpayKeyId || '');
   const [effectiveOrderId, setEffectiveOrderId] = useState<string>(razorpayOrderId || '');
+  const [activeGateway, setActiveGateway] = useState<string>(gateway || 'Razorpay Payment Link');
+  const [activePaymentLink, setActivePaymentLink] = useState<string>(paymentLink || 'https://rzp.io/rzp/Wvuh93a');
 
-  // Pre-load Razorpay script and ensure key is available
+  // Load latest payment settings from server
   useEffect(() => {
-    loadRazorpayScript();
+    fetch('/api/payment-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          if (data.gateway) setActiveGateway(data.gateway);
+          if (data.paymentLink) setActivePaymentLink(data.paymentLink);
+          if (data.razorpayKeyId) setEffectiveKeyId(data.razorpayKeyId);
+        }
+      })
+      .catch((err) => console.warn('Payment settings fetch warning:', err));
+
     if (razorpayKeyId) {
       setEffectiveKeyId(razorpayKeyId);
-    } else {
-      fetch('/api/payment-settings')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.razorpayKeyId) {
-            setEffectiveKeyId(data.razorpayKeyId);
-          }
-        })
-        .catch((err) => console.warn('Payment settings fetch warning:', err));
     }
     if (razorpayOrderId) {
       setEffectiveOrderId(razorpayOrderId);
     }
   }, [razorpayKeyId, razorpayOrderId]);
 
-  // Automatically launch checkout once modal opens
+  // Is Payment Link mode active?
+  const isPaymentLinkMode = activeGateway === 'Razorpay Payment Link' || !effectiveKeyId;
+
+  // Pre-load script only if in Standard Checkout mode with Key ID
   useEffect(() => {
-    const timer = setTimeout(() => {
-      handleOpenRazorpay();
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [activeTempId]);
+    if (!isPaymentLinkMode && effectiveKeyId) {
+      loadRazorpayScript();
+    }
+  }, [isPaymentLinkMode, effectiveKeyId]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -118,7 +126,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setConfirmedRecord(data.registration);
           setConfirmedWhatsappMsg(data.whatsappMessage || '');
           setPaymentState('SUCCESS');
-          // Automatically transition to confirmed registration receipt
           setTimeout(() => {
             onPaymentSuccess(data.registration, data.whatsappMessage);
           }, 2000);
@@ -142,9 +149,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Start polling when state is CHECKING
   useEffect(() => {
     if (paymentState === 'CHECKING') {
-      // Immediate first check
       checkPaymentStatus();
-      // Poll every 2.5 seconds
       pollingRef.current = setInterval(() => {
         checkPaymentStatus();
       }, 2500);
@@ -157,9 +162,39 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [paymentState, activeTempId, studentMobile]);
 
-  // Open Razorpay Payment Flow (Mobile and Desktop Standard Checkout)
-  const handleOpenRazorpay = async (forceFreshOrder = false) => {
+  // Handle Pay Click based on active gateway
+  const handlePayButtonClick = () => {
     console.log('PAY_BUTTON_CLICKED');
+    if (isPaymentLinkMode) {
+      handleOpenPaymentLink();
+    } else {
+      handleOpenRazorpayStandard();
+    }
+  };
+
+  // 1. Payment Link Flow
+  const handleOpenPaymentLink = () => {
+    const link = (activePaymentLink || paymentLink || '').trim();
+    if (!link || (!link.startsWith('http://') && !link.startsWith('https://'))) {
+      setErrorMessage('अधिकृत Razorpay Payment Link उपलब्ध नाही. कृपया Admin Settings मध्ये वैध लिंक सेट करा.');
+      setPaymentState('FAILED');
+      return;
+    }
+
+    setErrorMessage('');
+    // Open Payment Link in a new tab / window
+    try {
+      window.open(link, '_blank');
+    } catch (e) {
+      window.location.href = link;
+    }
+
+    // Immediately switch to checking / monitoring state so polling starts
+    setPaymentState('CHECKING');
+  };
+
+  // 2. Standard Checkout Flow (only when configured and selected)
+  const handleOpenRazorpayStandard = async (forceFreshOrder = false) => {
     console.log('CREATE_ORDER_STARTED');
     setIsLaunching(true);
     setErrorMessage('');
@@ -181,7 +216,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (!keyToUse) {
       setIsLaunching(false);
       setPaymentState('FAILED');
-      setErrorMessage('Payment सुरू करता आले नाही (Razorpay Key ID उपलब्ध नाही). कृपया पुन्हा प्रयत्न करा.');
+      setErrorMessage('Payment सुरू करता आले नाही (Razorpay Key ID उपलब्ध नाही). कृपया Payment Link वापरा किंवा Admin Settings तपासा.');
       return;
     }
 
@@ -207,7 +242,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         } else {
           setIsLaunching(false);
           setPaymentState('FAILED');
-          setErrorMessage(ordData.error || 'Payment सुरू करता आले नाही. सर्व्हरवर ऑर्डर तयार करता आली नाही. कृपया पुन्हा प्रयत्न करा.');
+          setErrorMessage(ordData.error || 'सर्व्हरवर ऑर्डर तयार करता आली नाही. कृपया पुन्हा प्रयत्न करा.');
           return;
         }
       } catch (e) {
@@ -217,16 +252,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         setErrorMessage('सर्व्हरशी संपर्क होऊ शकला नाही. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.');
         return;
       }
-    } else if (orderIdToUse) {
-      console.log('CREATE_ORDER_SUCCESS');
-      console.log('ORDER_ID_RECEIVED', orderIdToUse);
-    }
-
-    if (!orderIdToUse || !orderIdToUse.startsWith('order_')) {
-      setIsLaunching(false);
-      setPaymentState('FAILED');
-      setErrorMessage('Payment सुरू करता आले नाही (वैध Order ID उपलब्ध नाही). कृपया पुन्हा प्रयत्न करा.');
-      return;
     }
 
     const launched = await launchRazorpayStandardCheckout({
@@ -312,13 +337,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  // Retry payment after failure or cancellation (re-launches Razorpay Standard Checkout with fresh order)
+  // Retry payment after failure or cancellation
   const handleRetryPayment = () => {
     console.log('RETRY_PAYMENT_CLICKED');
     setPaymentState('IDLE');
     setErrorMessage('');
     setEffectiveOrderId('');
-    handleOpenRazorpay(true);
+    handlePayButtonClick();
   };
 
   // Cancel / Dismiss Modal
@@ -515,7 +540,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={handleOpenRazorpay}
+                    onClick={handlePayButtonClick}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
@@ -629,10 +654,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="button"
                 id="modal-pay-razorpay-btn"
                 disabled={isLaunching}
-                onClick={() => {
-                  console.log('PAY_BUTTON_CLICKED');
-                  handleOpenRazorpay();
-                }}
+                onClick={handlePayButtonClick}
                 className="w-full bg-[#E53935] hover:bg-[#D32F2F] active:scale-[0.99] text-white text-sm font-black py-4 px-4 rounded-2xl shadow-lg shadow-[#E53935]/30 flex items-center justify-center gap-2.5 uppercase tracking-wider font-poppins cursor-pointer transition disabled:opacity-75 disabled:cursor-wait"
               >
                 {isLaunching ? (

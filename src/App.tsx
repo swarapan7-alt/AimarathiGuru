@@ -188,6 +188,8 @@ export default function App() {
   // Check for returning payment redirect or pending session on load
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    const pathname = window.location.pathname;
+    const isSuccessRoute = pathname === '/payment-success' || pathname.endsWith('/payment-success');
     const payId =
       urlParams.get('razorpay_payment_id') ||
       urlParams.get('payment_id') ||
@@ -195,6 +197,10 @@ export default function App() {
     const plinkId =
       urlParams.get('razorpay_payment_link_id') ||
       urlParams.get('plink_id') ||
+      '';
+    const regId =
+      urlParams.get('reg_id') ||
+      urlParams.get('registration_id') ||
       '';
 
     const storedSession = localStorage.getItem('amg_pending_session');
@@ -205,8 +211,8 @@ export default function App() {
       } catch (_) {}
     }
 
-    if (payId || plinkId || parsedSession) {
-      const tempId = parsedSession?.tempId || '';
+    if (payId || plinkId || regId || isSuccessRoute || parsedSession) {
+      const tempId = parsedSession?.tempId || regId || '';
       const mobileNumber = parsedSession?.mobileNumber || '';
 
       fetch('/api/payment/check-status', {
@@ -214,6 +220,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tempId,
+          studentId: tempId,
+          registrationId: regId,
           mobileNumber,
           razorpay_payment_id: payId,
           razorpay_payment_link_id: plinkId,
@@ -232,6 +240,7 @@ export default function App() {
             window.history.replaceState({}, document.title, window.location.pathname);
             setCurrentRegistration(data.registration);
             setWhatsappMessage(data.whatsappMessage || '');
+            setShowPaymentModal(false);
             setShowConfirmationModal(true);
           } else if (parsedSession) {
             setPendingSession({
@@ -283,10 +292,8 @@ export default function App() {
           tempId: resData.tempId,
           mobileNumber: data.mobileNumber,
           fullName: data.fullName,
-          courseDateDisplay:
-            resData.pendingRegistration?.courseDateDisplay || data.courseDateDisplay,
-          slotTimeDisplay:
-            resData.pendingRegistration?.slotTimeDisplay || data.slotTimeDisplay,
+          courseDateDisplay: data.courseDateDisplay,
+          slotTimeDisplay: data.slotTimeDisplay,
           amount: resData.amount || 99,
         };
         localStorage.setItem('amg_pending_session', JSON.stringify(sessionPayload));
@@ -416,6 +423,7 @@ export default function App() {
           fee={courseFee}
           oldPrice={originalFee}
           paymentLink={paymentSettings?.paymentLink || 'https://rzp.io/rzp/Wvuh93a'}
+          gateway={paymentSettings?.gateway}
         />
       )}
 

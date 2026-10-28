@@ -13,6 +13,32 @@
   ],
   "courseDates": [
     {
+      "id": "cd_2026_10_29",
+      "date": "2026-10-29",
+      "displayDate": "Thursday, 29 October 2026",
+      "enabled": true,
+      "slot1": {
+        "id": "slot1",
+        "name": "Slot 1 (सकाळ)",
+        "startTime": "11:00 AM",
+        "endTime": "1:00 PM",
+        "capacity": 100,
+        "booked": 19,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot1-live"
+      },
+      "slot2": {
+        "id": "slot2",
+        "name": "Slot 2 (संध्याकाळ)",
+        "startTime": "7:00 PM",
+        "endTime": "9:00 PM",
+        "capacity": 100,
+        "booked": 24,
+        "enabled": true,
+        "meetLink": "https://meet.google.com/amg-slot2-live"
+      }
+    },
+    {
       "id": "cd_2026_09_20",
       "date": "2026-09-20",
       "displayDate": "Sunday, 20 September 2026",
@@ -92,6 +118,35 @@
     }
   ],
   "students": [
+    {
+      "id": "AMG-2026-00016",
+      "tempId": "sess_1793200812537_dmaqo6t",
+      "fullName": "अमित शिंदे",
+      "mobileNumber": "9822001122",
+      "whatsappNumber": "9822001122",
+      "email": "amit.shinde@example.com",
+      "district": "पुणे (Pune)",
+      "occupation": "Job",
+      "courseDateId": "cd_2026_10_29",
+      "courseDateDisplay": "Thursday, 29 October 2026",
+      "selectedSlot": "slot1",
+      "slotTimeDisplay": "11:00 AM – 1:00 PM",
+      "agreedToFee": true,
+      "registrationDate": "2026-10-28T15:20:12.537Z",
+      "registrationStatus": "CONFIRMED",
+      "paymentStatus": "PAID",
+      "paymentVerified": true,
+      "paymentId": "pay_TESTVERIFY12345",
+      "paymentLinkId": "",
+      "amountPaid": 99,
+      "whatsappJoined": false,
+      "meetLink": "https://meet.google.com/amg-slot1-live",
+      "orderId": "order_TtNL7owuCVDltd",
+      "paymentDate": "2026-10-28T15:20:19.327Z",
+      "whatsappSent": false,
+      "whatsappDeliveryStatus": "FAILED",
+      "whatsappLastError": "WhatsApp Business API credentials (Phone Number ID or Access Token) are not configured. Setup required in Admin Panel → WhatsApp Settings."
+    },
     {
       "id": "AMG-2026-00015",
       "tempId": "sess_1792562522829_zqglbg5",
@@ -836,14 +891,24 @@
     "originalFee": 999,
     "razorpayKeyId": "",
     "paymentLink": "https://rzp.io/rzp/Wvuh93a",
-    "gateway": "Razorpay Standard Checkout"
+    "gateway": "Razorpay Payment Link"
   },
   "whatsappSettings": {
     "communityLink": "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
     "groupLink": "https://chat.whatsapp.com/H1L98amgAIBatchGroupLink2026",
     "adminWhatsAppNumber": "9801555171",
     "customSuccessMessage": "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
-    "buttonText": "JOIN WHATSAPP COMMUNITY"
+    "buttonText": "JOIN WHATSAPP COMMUNITY",
+    "autoSendOnPayment": true,
+    "provider": "meta_cloud_api",
+    "phoneNumberId": "",
+    "accessToken": "",
+    "businessAccountId": "",
+    "templateName": "payment_success",
+    "templateLanguage": "mr",
+    "lastTestedAt": "2026-10-28T15:22:26.214Z",
+    "lastTestStatus": "FAILED",
+    "lastTestError": "Meta WhatsApp Cloud API credentials missing: Phone Number ID and Access Token are required."
   },
   "communicationSettings": {
     "businessNumber": "9801555171",
@@ -1014,7 +1079,55 @@
       }
     ]
   },
+  "whatsappDeliveryLogs": [
+    {
+      "id": "walog_1793200940729_3jx8r",
+      "studentId": "AMG-2026-00016",
+      "studentName": "अमित शिंदे",
+      "mobileNumber": "919822001122",
+      "registrationId": "AMG-2026-00016",
+      "paymentStatus": "PAID",
+      "deliveryStatus": "FAILED",
+      "timestamp": "2026-10-28T15:22:20.729Z",
+      "errorDetails": "WhatsApp Business API credentials (Phone Number ID or Access Token) are not configured. Setup required in Admin Panel → WhatsApp Settings.",
+      "attemptCount": 1
+    },
+    {
+      "id": "walog_1793200819328_czn3a",
+      "studentId": "AMG-2026-00016",
+      "studentName": "अमित शिंदे",
+      "mobileNumber": "919822001122",
+      "registrationId": "AMG-2026-00016",
+      "paymentStatus": "PAID",
+      "deliveryStatus": "FAILED",
+      "timestamp": "2026-10-28T15:20:19.328Z",
+      "errorDetails": "WhatsApp Business API credentials (Phone Number ID or Access Token) are not configured. Setup required in Admin Panel → WhatsApp Settings.",
+      "attemptCount": 1
+    }
+  ],
   "auditLogs": [
+    {
+      "id": "log_1793200952418_474",
+      "timestamp": "2026-10-28T15:22:32.418Z",
+      "adminUsername": "admin",
+      "action": "UPDATE_PAYMENT_SETTINGS",
+      "details": "Updated Payment Settings: Gateway: Razorpay Payment Link, Course Fee ₹99, MRP ₹999, Link: https://rzp.io/rzp/Wvuh93a"
+    },
+    {
+      "id": "log_1793200923272_146",
+      "timestamp": "2026-10-28T15:22:03.272Z",
+      "adminUsername": "admin",
+      "action": "ADMIN_LOGIN",
+      "details": "Admin login successful",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "log_1793200819330_948",
+      "timestamp": "2026-10-28T15:20:19.330Z",
+      "adminUsername": "SYSTEM",
+      "action": "PAYMENT_VERIFIED",
+      "details": "Verified payment for अमित शिंदे (AMG-2026-00016) | PayID: pay_TESTVERIFY12345"
+    },
     {
       "id": "log_1792562522920_863",
       "timestamp": "2026-10-21T06:02:02.920Z",

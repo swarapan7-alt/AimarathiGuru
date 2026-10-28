@@ -71,6 +71,8 @@ export interface RegistrationRecord extends RegistrationFormData {
   whatsappSent?: boolean;
   whatsappSentAt?: string;
   whatsappDeliveryStatus?: string;
+  whatsappLastError?: string;
+  whatsappMessageId?: string;
   meetLink?: string;
   reminderSent24h?: boolean;
   reminderSent2h?: boolean;
@@ -102,6 +104,46 @@ export interface WhatsAppSettings {
   adminWhatsAppNumber: string;
   customSuccessMessage: string;
   buttonText: string;
+  autoSendOnPayment?: boolean;
+  provider?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
+  templateName?: string;
+  templateLanguage?: string;
+}
+
+export interface WhatsAppDeliveryLog {
+  id: string;
+  studentName: string;
+  studentId: string;
+  mobileNumber: string;
+  registrationId: string;
+  paymentStatus: string;
+  deliveryStatus: 'SENT' | 'FAILED' | 'PENDING' | 'NOT_CONFIGURED';
+  timestamp: string;
+  errorDetails?: string;
+  messageId?: string;
+  attemptCount?: number;
+}
+
+export interface WhatsAppAutomationStatus {
+  status: 'CONNECTED' | 'NOT_CONFIGURED' | 'ERROR';
+  hasToken: boolean;
+  provider: string;
+  phoneNumberId: string;
+  wabaId: string;
+  templateName: string;
+  templateLanguage: string;
+  autoSendOnPayment: boolean;
+  communityLink: string;
+  errorDetails?: string | null;
+  failedCount?: number;
+  diagnostics?: {
+    apiTokenConfigured: boolean;
+    phoneNumberIdConfigured: boolean;
+    templateConfigured: boolean;
+    webhookConfigured: boolean;
+  };
 }
 
 export interface MessageTemplates {

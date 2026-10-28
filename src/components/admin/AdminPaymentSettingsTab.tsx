@@ -21,6 +21,10 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
   const [courseFee, setCourseFee] = useState<number | string>(99);
   const [originalFee, setOriginalFee] = useState<number | string>(999);
   const [paymentLink, setPaymentLink] = useState('https://rzp.io/rzp/Wvuh93a');
+  const [gateway, setGateway] = useState('Razorpay Payment Link');
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
+  const [gatewayStatus, setGatewayStatus] = useState('ACTIVE');
+  const [liveMode, setLiveMode] = useState('ACTIVE');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,6 +56,18 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
         }
         if (ps.paymentLink) {
           setPaymentLink(ps.paymentLink);
+        }
+        if (ps.gateway) {
+          setGateway(ps.gateway);
+        }
+        if (ps.razorpayKeyId) {
+          setRazorpayKeyId(ps.razorpayKeyId);
+        }
+        if (ps.gatewayStatus) {
+          setGatewayStatus(ps.gatewayStatus);
+        }
+        if (ps.liveMode) {
+          setLiveMode(ps.liveMode);
         }
       } else {
         setSaveError(data.error || 'पेमेंट सेटिंग्ज लोड करता आल्या नाहीत.');
@@ -94,10 +110,12 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          gateway,
           courseFee: feeNum,
           originalFee: origNum,
           oldPrice: origNum,
           paymentLink: paymentLink.trim() || 'https://rzp.io/rzp/Wvuh93a',
+          razorpayKeyId: razorpayKeyId.trim(),
         }),
       });
 
@@ -108,6 +126,9 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
         const ps = data.paymentSettings || data;
         if (ps.courseFee !== undefined) setCourseFee(Number(ps.courseFee));
         if (ps.originalFee !== undefined) setOriginalFee(Number(ps.originalFee));
+        if (ps.gateway) setGateway(ps.gateway);
+        if (ps.gatewayStatus) setGatewayStatus(ps.gatewayStatus);
+        if (ps.liveMode) setLiveMode(ps.liveMode);
 
         // Sync with browser storage for instant persistence across pages/tabs
         try {
@@ -143,25 +164,25 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider mb-1.5 font-poppins">
-            <ShieldCheck className="w-3.5 h-3.5" /> Razorpay Standard Checkout
+            <ShieldCheck className="w-3.5 h-3.5" /> {gateway}
           </div>
           <h1 className="text-base sm:text-lg font-black text-slate-900 font-poppins">
             Payment Settings
           </h1>
           <p className="text-xs text-slate-500 font-marathi-sub">
-            कोर्स फी रचना आणि अधिकृत Razorpay Standard Checkout व्यवस्थापन
+            कोर्स फी रचना, अधिकृत Razorpay पेमेंट मोड व सर्व्हर-साईड पडताळणी व्यवस्थापन
           </p>
         </div>
 
-        {/* Live Status Badges */}
+        {/* Live Status Badges from Server */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black font-poppins">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Gateway: ACTIVE</span>
+            <span>Gateway: {gatewayStatus}</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-black font-poppins">
             <Lock className="w-3 h-3 text-blue-600" />
-            <span>Live Mode: ACTIVE</span>
+            <span>Live Mode: {liveMode}</span>
           </div>
         </div>
       </div>
@@ -172,7 +193,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
         {saveSuccess && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>पेमेंट सेटिंग्ज यशस्वीरित्या सेव्ह झाल्या आहेत! वेबसाईटवर नवीन फी लागू झाली आहे.</span>
+            <span>पेमेंट सेटिंग्ज यशस्वीरित्या सेव्ह झाल्या आहेत! वेबसाईटवर नवीन सेटिंग्ज कायमस्वरूपी लागू झाल्या आहेत.</span>
           </div>
         )}
 
@@ -183,7 +204,47 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           </div>
         )}
 
-        {/* 1. Course Fee Structure */}
+        {/* 1. Payment Gateway Mode Selection */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <label className="text-xs font-black text-slate-800 block font-poppins uppercase tracking-wider">
+            Active Payment Gateway Mode
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition ${gateway === 'Razorpay Payment Link' ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+              <input
+                type="radio"
+                name="gateway_mode"
+                checked={gateway === 'Razorpay Payment Link'}
+                onChange={() => setGateway('Razorpay Payment Link')}
+                className="mt-0.5 text-blue-600"
+              />
+              <div className="text-xs">
+                <span className="font-black text-slate-900 block font-poppins">Razorpay Payment Link (Recommended)</span>
+                <span className="text-slate-500 text-[11px] leading-relaxed">
+                  विद्यार्थी थेट अधिकृत पेमेंट लिंकवर रिडायरेक्ट होतात. कोणत्याही Frontend API Key ची गरज नसते.
+                </span>
+              </div>
+            </label>
+
+            <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition ${gateway === 'Razorpay Standard Checkout' ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+              <input
+                type="radio"
+                name="gateway_mode"
+                checked={gateway === 'Razorpay Standard Checkout'}
+                onChange={() => setGateway('Razorpay Standard Checkout')}
+                className="mt-0.5 text-blue-600"
+              />
+              <div className="text-xs">
+                <span className="font-black text-slate-900 block font-poppins">Razorpay Standard Checkout (Popup)</span>
+                <span className="text-slate-500 text-[11px] leading-relaxed">
+                  वेबसाईटवरच Razorpay पॉप-अप उघडतो. यासाठी वैध Razorpay Key ID आवश्यक असतो.
+                </span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* 2. Course Fee Structure */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -244,7 +305,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           </div>
         </div>
 
-        {/* 2. Official Razorpay Payment Link Configuration */}
+        {/* 3. Official Razorpay Payment Link Configuration */}
         <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/60 pb-3">
             <div>
@@ -252,13 +313,13 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
                 Official Gateway Configuration
               </div>
               <h4 className="text-sm font-black text-slate-900 font-poppins flex items-center gap-1.5">
-                <span>Payment Gateway:</span>
-                <span className="text-blue-700">Razorpay Payment Link</span>
+                <span>Active Gateway:</span>
+                <span className="text-blue-700">{gateway}</span>
               </h4>
             </div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-black uppercase tracking-wider font-poppins flex items-center gap-1 shadow-xs">
-                <Check className="w-3.5 h-3.5" /> Active Gateway
+                <Check className="w-3.5 h-3.5" /> {gatewayStatus}
               </span>
             </div>
           </div>
@@ -291,9 +352,29 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
               />
             </div>
             <p className="text-[11px] text-slate-500">
-              विद्यार्थ्यांनी "Proceed to Pay" वर क्लिक केल्यास ते थेट या Razorpay पेमेंट लिंकवर रिडायरेक्ट होतील.
+              विद्यार्थ्यांनी "PAY ₹{courseFee}" वर क्लिक केल्यास ते थेट या Razorpay अधिकृत पेमेंट लिंकवर रिडायरेक्ट होतील.
             </p>
           </div>
+
+          {/* Standard Checkout Key ID Input (Shown when selected or configured) */}
+          {gateway === 'Razorpay Standard Checkout' && (
+            <div className="p-4 rounded-xl bg-white border border-blue-100 shadow-xs space-y-2">
+              <label className="text-xs font-black text-slate-800 font-poppins flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-blue-600" />
+                <span>Razorpay Key ID (rzp_live_...)</span>
+              </label>
+              <input
+                type="text"
+                value={razorpayKeyId}
+                onChange={(e) => setRazorpayKeyId(e.target.value)}
+                placeholder="rzp_live_xxxxxxxxxxxxxxxx"
+                className="w-full px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 bg-slate-50 border border-stone-300 rounded-xl outline-none focus:border-blue-600 focus:bg-white transition"
+              />
+              <p className="text-[11px] text-slate-500">
+                Razorpay Standard Checkout पॉप-अपसाठी आवश्यक Key ID. (Secret Key सर्व्हरवर सुरक्षित ठेवली जाते).
+              </p>
+            </div>
+          )}
 
           {/* Webhook Reconciliation Info */}
           <div className="p-3.5 rounded-xl bg-white border border-blue-100 shadow-xs space-y-2 text-xs">
@@ -329,7 +410,7 @@ export const AdminPaymentSettingsTab: React.FC<AdminPaymentSettingsTabProps> = (
           </div>
         </div>
 
-        {/* 3. Save Button */}
+        {/* 4. Save Button */}
         <div className="pt-3 border-t border-stone-200 flex items-center justify-end">
           <button
             type="submit"

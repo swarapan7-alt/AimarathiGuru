@@ -330,6 +330,8 @@ interface DBStructure {
     whatsappSent?: boolean;
     whatsappSentAt?: string;
     whatsappDeliveryStatus?: string;
+    whatsappLastError?: string;
+    whatsappMessageId?: string;
     meetLink?: string;
     reminderSent24h?: boolean;
     reminderSent2h?: boolean;
@@ -347,6 +349,16 @@ interface DBStructure {
     adminWhatsAppNumber: string;
     customSuccessMessage: string;
     buttonText: string;
+    autoSendOnPayment?: boolean;
+    provider?: "meta_cloud_api" | "custom_webhook";
+    phoneNumberId?: string;
+    accessToken?: string;
+    businessAccountId?: string;
+    templateName?: string;
+    templateLanguage?: string;
+    lastTestedAt?: string;
+    lastTestStatus?: "SUCCESS" | "FAILED";
+    lastTestError?: string;
   };
   communicationSettings: {
     businessNumber: string;
@@ -400,6 +412,19 @@ interface DBStructure {
     modules: typeof DEFAULT_MODULES;
     faqs: typeof DEFAULT_FAQS;
   };
+  whatsappDeliveryLogs: Array<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    mobileNumber: string;
+    registrationId: string;
+    paymentStatus: string;
+    deliveryStatus: "SENT" | "FAILED" | "PENDING" | "NOT_CONFIGURED";
+    timestamp: string;
+    errorDetails?: string;
+    messageId?: string;
+    attemptCount?: number;
+  }>;
   auditLogs: Array<{
     id: string;
     timestamp: string;
@@ -564,7 +589,8 @@ function loadDB(): DBStructure {
       paymentLink:
         existingData?.paymentSettings?.paymentLink?.trim() ||
         DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Standard Checkout",
+      gateway:
+        existingData?.paymentSettings?.gateway || "Razorpay Payment Link",
     },
     whatsappSettings: {
       communityLink:
@@ -584,6 +610,33 @@ function loadDB(): DBStructure {
         "तुमचे Registration आणि Payment यशस्वी झाले आहे. आता खालील बटणावर क्लिक करून AI Marathi Guru WhatsApp Community Join करा.",
       buttonText:
         existingData?.whatsappSettings?.buttonText || "JOIN WHATSAPP COMMUNITY",
+      autoSendOnPayment:
+        existingData?.whatsappSettings?.autoSendOnPayment !== undefined
+          ? Boolean(existingData.whatsappSettings.autoSendOnPayment)
+          : true,
+      provider:
+        existingData?.whatsappSettings?.provider || "meta_cloud_api",
+      phoneNumberId:
+        existingData?.whatsappSettings?.phoneNumberId ||
+        process.env.WHATSAPP_PHONE_NUMBER_ID ||
+        "",
+      accessToken:
+        existingData?.whatsappSettings?.accessToken ||
+        process.env.WHATSAPP_ACCESS_TOKEN ||
+        "",
+      businessAccountId:
+        existingData?.whatsappSettings?.businessAccountId ||
+        process.env.WHATSAPP_BUSINESS_ACCOUNT_ID ||
+        "",
+      templateName:
+        existingData?.whatsappSettings?.templateName ||
+        process.env.WHATSAPP_TEMPLATE_NAME ||
+        "payment_success",
+      templateLanguage:
+        existingData?.whatsappSettings?.templateLanguage || "mr",
+      lastTestedAt: existingData?.whatsappSettings?.lastTestedAt,
+      lastTestStatus: existingData?.whatsappSettings?.lastTestStatus,
+      lastTestError: existingData?.whatsappSettings?.lastTestError,
     },
     communicationSettings: {
       businessNumber:
@@ -698,6 +751,9 @@ function loadDB(): DBStructure {
       modules: DEFAULT_MODULES,
       faqs: DEFAULT_FAQS,
     },
+    whatsappDeliveryLogs: Array.isArray(existingData?.whatsappDeliveryLogs)
+      ? existingData!.whatsappDeliveryLogs!
+      : [],
     auditLogs: existingData?.auditLogs || [
       {
         id: "log_1",
@@ -815,12 +871,321 @@ function formatMessageTemplate(
   msg = msg.replace(/{meet_link}/gi, meetLink);
   msg = msg.replace(/{GOOGLE_MEET_LINK}/g, meetLink);
 
+  // Course Name replacements
+  msg = msg.replace(/{Course Name}/gi, "AI Marathi Guru Live Training");
+  msg = msg.replace(/{course_name}/gi, "AI Marathi Guru Live Training");
+  msg = msg.replace(/{amount_paid}/gi, courseFee);
+
   if (extra) {
     Object.keys(extra).forEach((k) => {
       msg = msg.replace(new RegExp(`{${k}}`, "gi"), extra[k]);
     });
   }
   return msg;
+}
+
+// Real WhatsApp Confirmation Dispatch Helper
+async function sendWhatsAppConfirmation(
+  student: DBStructure["students"][0],
+  isRetry: boolean = false,
+): Promise<{
+  success: boolean;
+  status: "SENT" | "FAILED" | "NOT_CONFIGURED" | "PENDING";
+  error?: string;
+  response?: any;
+}> {
+  const settings = db.whatsappSettings;
+  const autoSend = settings.autoSendOnPayment !== false;
+
+  // If automatic sending is disabled and this is not a manual retry
+  if (!autoSend && !isRetry) {
+    student.whatsappDeliveryStatus = "PENDING";
+    student.whatsappLastError =
+      "Automatic WhatsApp confirmation is disabled in Admin WhatsApp Settings.";
+    return {
+      success: false,
+      status: "PENDING",
+      error:
+        "Automatic WhatsApp confirmation is disabled in Admin WhatsApp Settings.",
+    };
+  }
+
+  // Idempotency: If already successfully sent, do not send duplicate
+  if (
+    student.whatsappSent &&
+    student.whatsappDeliveryStatus === "SENT" &&
+    !isRetry
+  ) {
+    console.log(
+      `[WHATSAPP SKIPPED] Student ${student.fullName} (${student.id}) already received WhatsApp confirmation.`,
+    );
+    return { success: true, status: "SENT" };
+  }
+
+  const phoneNumberId = (
+    settings.phoneNumberId ||
+    process.env.WHATSAPP_PHONE_NUMBER_ID ||
+    ""
+  ).trim();
+  const accessToken = (
+    settings.accessToken ||
+    process.env.WHATSAPP_ACCESS_TOKEN ||
+    ""
+  ).trim();
+  const templateName = (
+    settings.templateName ||
+    process.env.WHATSAPP_TEMPLATE_NAME ||
+    "payment_success"
+  ).trim();
+  const templateLang = (settings.templateLanguage || "mr").trim();
+
+  // Format recipient phone number (India +91)
+  const rawNumber = student.whatsappNumber || student.mobileNumber || "";
+  const digitsOnly = rawNumber.replace(/\D/g, "");
+  let recipient = digitsOnly;
+  if (digitsOnly.length === 10) {
+    recipient = "91" + digitsOnly;
+  }
+
+  const template = db.communicationSettings.templates.paymentSuccess;
+  const formattedMessage = formatMessageTemplate(template, student);
+
+  // Check if API credentials exist
+  if (!phoneNumberId || !accessToken) {
+    const errorMsg =
+      "WhatsApp Business API credentials (Phone Number ID or Access Token) are not configured. Setup required in Admin Panel → WhatsApp Settings.";
+    student.whatsappSent = false;
+    student.whatsappDeliveryStatus = "FAILED";
+    student.whatsappLastError = errorMsg;
+
+    const logEntry = {
+      id: "walog_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      studentId: student.id,
+      studentName: student.fullName,
+      mobileNumber: recipient,
+      registrationId: student.id,
+      paymentStatus: student.paymentStatus,
+      deliveryStatus: "FAILED" as const,
+      timestamp: new Date().toISOString(),
+      errorDetails: errorMsg,
+      attemptCount: 1,
+    };
+    if (!db.whatsappDeliveryLogs) db.whatsappDeliveryLogs = [];
+    db.whatsappDeliveryLogs.unshift(logEntry);
+    if (db.whatsappDeliveryLogs.length > 200) db.whatsappDeliveryLogs.pop();
+    saveDB(db);
+
+    console.warn(
+      `[WHATSAPP CONFIG REQUIRED] Cannot send WhatsApp to ${student.fullName} (${student.id}): ${errorMsg}`,
+    );
+    return {
+      success: false,
+      status: "FAILED",
+      error: errorMsg,
+    };
+  }
+
+  // Attempt real Meta Cloud API dispatch
+  try {
+    console.log(
+      `[WHATSAPP DISPATCH] Sending to ${recipient} via Meta Cloud API (${phoneNumberId})...`,
+    );
+
+    let metaPayload: any;
+    const communityLink =
+      settings.communityLink ||
+      "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO";
+
+    if (
+      templateName &&
+      templateName !== "none" &&
+      templateName !== "custom_text"
+    ) {
+      metaPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: student.fullName },
+                { type: "text", text: student.id },
+                { type: "text", text: student.courseDateDisplay },
+                { type: "text", text: student.slotTimeDisplay },
+                { type: "text", text: communityLink },
+              ],
+            },
+          ],
+        },
+      };
+    } else {
+      metaPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient,
+        type: "text",
+        text: { preview_url: true, body: formattedMessage },
+      };
+    }
+
+    const apiUrl = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(metaPayload),
+    });
+
+    const respData: any = await response.json();
+
+    if (response.ok && respData.messages && respData.messages[0]?.id) {
+      const messageId = respData.messages[0].id;
+      student.whatsappSent = true;
+      student.whatsappSentAt = new Date().toISOString();
+      student.whatsappDeliveryStatus = "SENT";
+      student.whatsappLastError = undefined;
+      student.whatsappMessageId = messageId;
+
+      if (!db.whatsappDeliveryLogs) db.whatsappDeliveryLogs = [];
+      db.whatsappDeliveryLogs.unshift({
+        id: "walog_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        studentId: student.id,
+        studentName: student.fullName,
+        mobileNumber: recipient,
+        registrationId: student.id,
+        paymentStatus: student.paymentStatus,
+        deliveryStatus: "SENT",
+        timestamp: new Date().toISOString(),
+        messageId,
+        attemptCount: 1,
+      });
+      if (db.whatsappDeliveryLogs.length > 200) db.whatsappDeliveryLogs.pop();
+      saveDB(db);
+
+      console.log(
+        `[WHATSAPP SUCCESS] Delivered confirmation to ${recipient} | Msg ID: ${messageId}`,
+      );
+      return { success: true, status: "SENT", response: respData };
+    } else {
+      // If template message failed, try text fallback
+      if (metaPayload.type === "template") {
+        try {
+          const textPayload = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: recipient,
+            type: "text",
+            text: { preview_url: true, body: formattedMessage },
+          };
+          const textRes = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(textPayload),
+          });
+          const textData: any = await textRes.json();
+          if (textRes.ok && textData.messages && textData.messages[0]?.id) {
+            const messageId = textData.messages[0].id;
+            student.whatsappSent = true;
+            student.whatsappSentAt = new Date().toISOString();
+            student.whatsappDeliveryStatus = "SENT";
+            student.whatsappLastError = undefined;
+            student.whatsappMessageId = messageId;
+
+            if (!db.whatsappDeliveryLogs) db.whatsappDeliveryLogs = [];
+            db.whatsappDeliveryLogs.unshift({
+              id:
+                "walog_" +
+                Date.now() +
+                "_" +
+                Math.random().toString(36).substring(2, 7),
+              studentId: student.id,
+              studentName: student.fullName,
+              mobileNumber: recipient,
+              registrationId: student.id,
+              paymentStatus: student.paymentStatus,
+              deliveryStatus: "SENT",
+              timestamp: new Date().toISOString(),
+              messageId,
+              attemptCount: 1,
+            });
+            if (db.whatsappDeliveryLogs.length > 200)
+              db.whatsappDeliveryLogs.pop();
+            saveDB(db);
+            return { success: true, status: "SENT", response: textData };
+          }
+        } catch (_) {}
+      }
+
+      const metaErrorMsg =
+        respData.error?.message ||
+        `Meta API Error (${response.status}): ${JSON.stringify(respData)}`;
+      student.whatsappSent = false;
+      student.whatsappDeliveryStatus = "FAILED";
+      student.whatsappLastError = metaErrorMsg;
+
+      if (!db.whatsappDeliveryLogs) db.whatsappDeliveryLogs = [];
+      db.whatsappDeliveryLogs.unshift({
+        id: "walog_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        studentId: student.id,
+        studentName: student.fullName,
+        mobileNumber: recipient,
+        registrationId: student.id,
+        paymentStatus: student.paymentStatus,
+        deliveryStatus: "FAILED",
+        timestamp: new Date().toISOString(),
+        errorDetails: metaErrorMsg,
+        attemptCount: 1,
+      });
+      if (db.whatsappDeliveryLogs.length > 200) db.whatsappDeliveryLogs.pop();
+      saveDB(db);
+
+      console.error(
+        `[WHATSAPP META ERROR] Failed sending to ${recipient}:`,
+        metaErrorMsg,
+      );
+      return {
+        success: false,
+        status: "FAILED",
+        error: metaErrorMsg,
+        response: respData,
+      };
+    }
+  } catch (apiErr: any) {
+    const errorMsg =
+      apiErr?.message || "Network error contacting WhatsApp Business API.";
+    student.whatsappSent = false;
+    student.whatsappDeliveryStatus = "FAILED";
+    student.whatsappLastError = errorMsg;
+
+    if (!db.whatsappDeliveryLogs) db.whatsappDeliveryLogs = [];
+    db.whatsappDeliveryLogs.unshift({
+      id: "walog_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      studentId: student.id,
+      studentName: student.fullName,
+      mobileNumber: recipient,
+      registrationId: student.id,
+      paymentStatus: student.paymentStatus,
+      deliveryStatus: "FAILED",
+      timestamp: new Date().toISOString(),
+      errorDetails: errorMsg,
+      attemptCount: 1,
+    });
+    if (db.whatsappDeliveryLogs.length > 200) db.whatsappDeliveryLogs.pop();
+    saveDB(db);
+
+    console.error(`[WHATSAPP NETWORK ERROR]`, apiErr);
+    return { success: false, status: "FAILED", error: errorMsg };
+  }
 }
 
 // Compute active course dates with live seat booking numbers
@@ -964,7 +1329,7 @@ app.get("/api/content", (req, res) => {
       originalFee: db.paymentSettings.originalFee,
       paymentLink:
         db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Standard Checkout",
+      gateway: db.paymentSettings.gateway || "Razorpay Payment Link",
       gatewayStatus: "ACTIVE",
       liveMode: "ACTIVE",
       razorpayKeyId: getLiveRazorpayKeyId(),
@@ -1015,7 +1380,7 @@ app.get("/api/payment-settings", (req, res) => {
     originalFee: db.paymentSettings.originalFee,
     paymentLink:
       db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-    gateway: "Razorpay Standard Checkout",
+    gateway: db.paymentSettings.gateway || "Razorpay Payment Link",
     gatewayStatus: "ACTIVE",
     liveMode: "ACTIVE",
     razorpayKeyId: getLiveRazorpayKeyId(),
@@ -1122,11 +1487,10 @@ app.post("/api/register", async (req, res) => {
     const paymentLinkUrl =
       db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
 
-    // Check if an existing unconfirmed/pending registration exists for this mobile and course date
+    // Check if an existing unconfirmed/pending registration exists for this mobile
     let pendingStudent = db.students.find(
       (s) =>
         s.mobileNumber.trim() === cleanMobile &&
-        s.courseDateId === courseDateId &&
         s.paymentStatus !== "PAID",
     );
 
@@ -1141,6 +1505,8 @@ app.post("/api/register", async (req, res) => {
         .toLowerCase();
       pendingStudent.district = String(district || "महाराष्ट्र").trim();
       pendingStudent.occupation = String(occupation || "Other").trim();
+      pendingStudent.courseDateId = String(courseDateId);
+      pendingStudent.courseDateDisplay = targetCourseDate.displayDate;
       pendingStudent.selectedSlot = slotKey;
       pendingStudent.slotTimeDisplay = slotTimeDisplay;
       pendingStudent.registrationDate = new Date().toISOString();
@@ -1227,7 +1593,7 @@ app.post("/api/register", async (req, res) => {
     saveDB(db);
 
     console.log(
-      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | OrderID: ${razorpayOrderId} | Fee: ₹${feeToCharge}`,
+      `[REGISTRATION INITIATED - PENDING] TempID: ${pendingStudent.tempId || pendingStudent.id} | Mobile: ${cleanMobile} | OrderID: ${razorpayOrderId} | Fee: ₹${feeToCharge} | Gateway: ${db.paymentSettings.gateway || "Razorpay Payment Link"}`,
     );
 
     return res.json({
@@ -1237,6 +1603,7 @@ app.post("/api/register", async (req, res) => {
       paymentStatus: "PENDING",
       amount: feeToCharge * 100,
       courseFee: feeToCharge,
+      gateway: db.paymentSettings.gateway || "Razorpay Payment Link",
       orderId: razorpayOrderId,
       order_id: razorpayOrderId,
       keyId: liveKeyId,
@@ -1523,6 +1890,8 @@ const handlePaymentVerification = async (
       }
     }
 
+    // Trigger real WhatsApp Confirmation
+    const waResult = await sendWhatsAppConfirmation(student);
     saveDB(db);
     addAuditLog(
       "SYSTEM",
@@ -1530,7 +1899,7 @@ const handlePaymentVerification = async (
       `Verified payment for ${student.fullName} (${confirmedRegId}) | PayID: ${payId}`,
     );
     console.log(
-      `[PAYMENT VERIFIED & CONFIRMED] ID: ${confirmedRegId} | Student: ${student.fullName} | PayID: ${payId}`,
+      `[PAYMENT VERIFIED & CONFIRMED] ID: ${confirmedRegId} | Student: ${student.fullName} | PayID: ${payId} | WhatsApp: ${waResult.status}`,
     );
 
     // Generate WhatsApp Confirmation Message (STEP 7)
@@ -1544,6 +1913,8 @@ const handlePaymentVerification = async (
       registrationStatus: "CONFIRMED",
       paymentStatus: "PAID",
       whatsappMessage: formattedMessage,
+      whatsappDeliveryStatus: student.whatsappDeliveryStatus || waResult.status,
+      whatsappLastError: student.whatsappLastError || waResult.error,
       communityLink:
         db.whatsappSettings.communityLink ||
         "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
@@ -1561,6 +1932,78 @@ const handlePaymentVerification = async (
 
 app.post("/api/payment/verify", handlePaymentVerification);
 app.post("/api/confirm-payment", handlePaymentVerification);
+
+// Razorpay Callback Handler (for redirect flow)
+const handlePaymentCallback = async (req: express.Request, res: express.Response) => {
+  try {
+    const razorpay_payment_id = (
+      req.body?.razorpay_payment_id ||
+      req.query.razorpay_payment_id ||
+      req.body?.payment_id ||
+      req.query.payment_id ||
+      ""
+    ) as string;
+    const razorpay_order_id = (
+      req.body?.razorpay_order_id ||
+      req.query.razorpay_order_id ||
+      req.body?.order_id ||
+      req.query.order_id ||
+      ""
+    ) as string;
+
+    console.log(
+      `[PAYMENT CALLBACK] Processing callback: payId=${razorpay_payment_id}, orderId=${razorpay_order_id}`,
+    );
+
+    if (!razorpay_payment_id) {
+      return res.redirect("/#register");
+    }
+
+    // Correlate student
+    let student = db.students.find((s) => s.paymentId === razorpay_payment_id);
+    if (!student && razorpay_order_id) {
+      student = db.students.find((s) => s.orderId === razorpay_order_id);
+    }
+
+    if (student) {
+      if (student.paymentStatus !== "PAID") {
+        student.id = generateNextRegistrationId(db);
+        student.registrationStatus = "CONFIRMED";
+        student.paymentStatus = "PAID";
+        student.paymentVerified = true;
+        student.paymentId = razorpay_payment_id;
+        student.paymentDate = new Date().toISOString();
+        student.failureReason = undefined;
+
+        const courseDate = db.courseDates.find(
+          (cd) => cd.id === student!.courseDateId,
+        );
+        if (courseDate) {
+          const slotKey =
+            student.selectedSlot === "slot2" ? "slot2" : "slot1";
+          if (courseDate[slotKey]) {
+            courseDate[slotKey].booked =
+              (courseDate[slotKey].booked || 0) + 1;
+          }
+        }
+        await sendWhatsAppConfirmation(student);
+        saveDB(db);
+      }
+      return res.redirect(
+        `/payment-success?payment_id=${razorpay_payment_id}&order_id=${razorpay_order_id}&reg_id=${student.id}&status=PAID`,
+      );
+    }
+
+    return res.redirect(
+      `/payment-success?payment_id=${razorpay_payment_id}&order_id=${razorpay_order_id}&status=PAID`,
+    );
+  } catch (cbErr) {
+    console.error("Payment callback error:", cbErr);
+    return res.redirect("/#register?error=payment_callback_failed");
+  }
+};
+app.post("/api/payment/callback", handlePaymentCallback);
+app.get("/api/payment/callback", handlePaymentCallback);
 
 // 6.1 Payment Failure Handler (STEP 4)
 app.post("/api/payment/fail", (req, res) => {
@@ -1805,7 +2248,7 @@ const handlePaymentStatusCheck = async (
                 }
 
                 if (!student.whatsappSent) {
-                  dispatchWhatsAppConfirmation(student);
+                  await sendWhatsAppConfirmation(student);
                 }
 
                 saveDB(db);
@@ -1974,23 +2417,9 @@ app.post("/api/payment/check-status", handlePaymentStatusCheck);
 
 // WhatsApp Confirmation Helper (Ensures idempotency & reports config status)
 function dispatchWhatsAppConfirmation(student: DBStructure["students"][0]) {
-  student.whatsappSent = true;
-  student.whatsappSentAt = new Date().toISOString();
-
-  const hasApiKey = Boolean(
-    process.env.WHATSAPP_API_TOKEN || process.env.ULTRAMSG_TOKEN,
-  );
-  if (hasApiKey) {
-    student.whatsappDeliveryStatus = "DELIVERED";
-  } else {
-    // Transparently note that no 3rd-party WhatsApp API service is configured in server environment
-    student.whatsappDeliveryStatus = "MANUAL_REQUIRED";
-    addAuditLog(
-      "WHATSAPP",
-      "AUTOMATION_NOTICE",
-      `Payment confirmed for ${student.fullName} (${student.id}). Automated WhatsApp API credentials are not set in environment variables; pre-formatted message is available for 1-click dispatch.`,
-    );
-  }
+  sendWhatsAppConfirmation(student).catch((err) => {
+    console.error("Async sendWhatsAppConfirmation error:", err);
+  });
 }
 
 // 6.3 Razorpay Webhook Handler (Supports payment_link.paid, payment.captured, order.paid, payment.failed)
@@ -2684,16 +3113,45 @@ app.delete("/api/admin/course-dates/:id", authenticateAdmin, (req, res) => {
 
 // 13. Payment Settings Endpoints
 app.get("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
+  const currentGateway = db.paymentSettings.gateway || "Razorpay Payment Link";
+  const currentKeyId = getLiveRazorpayKeyId();
+  const hasKeySecret = Boolean(getLiveRazorpayKeySecret());
+  const hasWebhookSecret = Boolean(getLiveRazorpayWebhookSecret());
+
+  const isLive =
+    currentKeyId.startsWith("rzp_live_") ||
+    (db.paymentSettings.paymentLink &&
+      !db.paymentSettings.paymentLink.includes("test"));
+  const isTest = currentKeyId.startsWith("rzp_test_");
+
+  let gatewayStatus = "ACTIVE";
+  let liveMode = isLive ? "LIVE_MODE" : isTest ? "TEST_MODE" : "ACTIVE";
+
+  if (currentGateway === "Razorpay Standard Checkout") {
+    if (!currentKeyId || !hasKeySecret) {
+      gatewayStatus = currentKeyId ? "PARTIALLY_CONFIGURED" : "NOT_CONFIGURED";
+    }
+  } else {
+    // Payment Link Mode
+    if (!db.paymentSettings.paymentLink) {
+      gatewayStatus = "NOT_CONFIGURED";
+    }
+  }
+
   res.json({
     success: true,
     paymentSettings: {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
-      paymentLink: db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Standard Checkout",
-      gatewayStatus: "ACTIVE",
-      liveMode: "ACTIVE",
-      razorpayKeyId: getLiveRazorpayKeyId(),
+      oldPrice: db.paymentSettings.originalFee,
+      paymentLink:
+        db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: currentGateway,
+      gatewayStatus,
+      liveMode,
+      razorpayKeyId: currentKeyId,
+      hasKeySecret,
+      hasWebhookSecret,
     },
   });
 });
@@ -2703,24 +3161,45 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
     courseFee,
     originalFee,
     oldPrice,
+    gateway,
     paymentLink,
     razorpayKeyId,
   } = req.body;
 
-  if (courseFee !== undefined && !isNaN(Number(courseFee)) && Number(courseFee) > 0) {
+  if (
+    courseFee !== undefined &&
+    !isNaN(Number(courseFee)) &&
+    Number(courseFee) > 0
+  ) {
     const feeNum = Number(courseFee);
     db.paymentSettings.courseFee = feeNum;
     db.siteSettings.courseFee = feeNum;
   }
   const resolvedOldFee = originalFee !== undefined ? originalFee : oldPrice;
-  if (resolvedOldFee !== undefined && !isNaN(Number(resolvedOldFee)) && Number(resolvedOldFee) > 0) {
+  if (
+    resolvedOldFee !== undefined &&
+    !isNaN(Number(resolvedOldFee)) &&
+    Number(resolvedOldFee) > 0
+  ) {
     const oldNum = Number(resolvedOldFee);
     db.paymentSettings.originalFee = oldNum;
     db.siteSettings.oldPrice = oldNum;
   }
+  if (gateway !== undefined) {
+    const cleanGw = String(gateway).trim();
+    if (
+      cleanGw === "Razorpay Standard Checkout" ||
+      cleanGw === "standard_checkout"
+    ) {
+      db.paymentSettings.gateway = "Razorpay Standard Checkout";
+    } else {
+      db.paymentSettings.gateway = "Razorpay Payment Link";
+    }
+  }
   if (paymentLink !== undefined) {
     const trimmedLink = String(paymentLink).trim();
-    db.paymentSettings.paymentLink = trimmedLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
+    db.paymentSettings.paymentLink =
+      trimmedLink || DEFAULT_RAZORPAY_PAYMENT_LINK;
   }
   if (razorpayKeyId !== undefined) {
     const cleanKey = String(razorpayKeyId).trim();
@@ -2731,8 +3210,27 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
   addAuditLog(
     (req as any).admin.username,
     "UPDATE_PAYMENT_SETTINGS",
-    `Updated Payment Settings: Course Fee ₹${db.paymentSettings.courseFee}, MRP ₹${db.paymentSettings.originalFee}, Link: ${db.paymentSettings.paymentLink}`,
+    `Updated Payment Settings: Gateway: ${db.paymentSettings.gateway}, Course Fee ₹${db.paymentSettings.courseFee}, MRP ₹${db.paymentSettings.originalFee}, Link: ${db.paymentSettings.paymentLink}`,
   );
+
+  const currentGateway = db.paymentSettings.gateway || "Razorpay Payment Link";
+  const currentKeyId = getLiveRazorpayKeyId();
+  const hasKeySecret = Boolean(getLiveRazorpayKeySecret());
+  const hasWebhookSecret = Boolean(getLiveRazorpayWebhookSecret());
+  const isLive =
+    currentKeyId.startsWith("rzp_live_") ||
+    (db.paymentSettings.paymentLink &&
+      !db.paymentSettings.paymentLink.includes("test"));
+  const isTest = currentKeyId.startsWith("rzp_test_");
+
+  let gatewayStatus = "ACTIVE";
+  let liveMode = isLive ? "LIVE_MODE" : isTest ? "TEST_MODE" : "ACTIVE";
+
+  if (currentGateway === "Razorpay Standard Checkout") {
+    if (!currentKeyId || !hasKeySecret) {
+      gatewayStatus = currentKeyId ? "PARTIALLY_CONFIGURED" : "NOT_CONFIGURED";
+    }
+  }
 
   res.json({
     success: true,
@@ -2740,19 +3238,98 @@ app.put("/api/admin/payment-settings", authenticateAdmin, (req, res) => {
     paymentSettings: {
       courseFee: db.paymentSettings.courseFee,
       originalFee: db.paymentSettings.originalFee,
-      paymentLink: db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
-      gateway: "Razorpay Standard Checkout",
-      gatewayStatus: "ACTIVE",
-      liveMode: "ACTIVE",
-      razorpayKeyId: getLiveRazorpayKeyId(),
+      oldPrice: db.paymentSettings.originalFee,
+      paymentLink:
+        db.paymentSettings.paymentLink || DEFAULT_RAZORPAY_PAYMENT_LINK,
+      gateway: currentGateway,
+      gatewayStatus,
+      liveMode,
+      razorpayKeyId: currentKeyId,
+      hasKeySecret,
+      hasWebhookSecret,
     },
   });
 });
 
-// 14. WhatsApp Settings Endpoints
-app.get("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
+// 14. WhatsApp Settings & Automation Endpoints
+app.get("/api/admin/whatsapp-status", authenticateAdmin, (req, res) => {
+  const settings = db.whatsappSettings;
+  const phoneNumberId =
+    settings.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+  const accessToken =
+    settings.accessToken || process.env.WHATSAPP_ACCESS_TOKEN || "";
+  const wabaId =
+    settings.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "";
+  const templateName =
+    settings.templateName || process.env.WHATSAPP_TEMPLATE_NAME || "payment_success";
+  const templateLanguage = settings.templateLanguage || "mr";
+  const autoSend = settings.autoSendOnPayment !== false;
+
+  const hasCredentials = Boolean(phoneNumberId && accessToken);
+
+  let automationStatus: "CONNECTED" | "NOT_CONFIGURED" | "ERROR" =
+    "NOT_CONFIGURED";
+  if (hasCredentials) {
+    if (settings.lastTestStatus === "FAILED") {
+      automationStatus = "ERROR";
+    } else {
+      automationStatus = "CONNECTED";
+    }
+  }
+
+  const failedCount = db.students.filter(
+    (s) => s.paymentStatus === "PAID" && s.whatsappDeliveryStatus === "FAILED",
+  ).length;
+
   res.json({
-    whatsappSettings: db.whatsappSettings,
+    success: true,
+    status: automationStatus,
+    automationStatus,
+    apiConfigured: hasCredentials,
+    hasToken: Boolean(accessToken),
+    phoneNumberId: phoneNumberId
+      ? `${phoneNumberId.substring(0, 4)}...${phoneNumberId.slice(-4)}`
+      : "",
+    rawPhoneNumberId: phoneNumberId || "",
+    wabaId: wabaId || "",
+    templateName,
+    templateLanguage,
+    autoSendOnPayment: autoSend,
+    communityLink:
+      settings.communityLink ||
+      "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+    errorDetails:
+      settings.lastTestError ||
+      (hasCredentials
+        ? null
+        : "WhatsApp Business API credentials (Phone Number ID & Access Token) are missing. Automatic WhatsApp messaging requires configuration."),
+    failedCount,
+    diagnostics: {
+      apiTokenConfigured: Boolean(accessToken),
+      phoneNumberIdConfigured: Boolean(phoneNumberId),
+      templateConfigured: Boolean(templateName),
+      webhookConfigured: false,
+    },
+    recentLogs: (db.whatsappDeliveryLogs || []).slice(0, 20),
+  });
+});
+
+app.get("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
+  const settings = db.whatsappSettings;
+  const maskedToken = settings.accessToken
+    ? `••••••••${settings.accessToken.slice(-4)}`
+    : "";
+
+  res.json({
+    success: true,
+    whatsappSettings: {
+      ...settings,
+      accessToken: maskedToken,
+      hasToken: Boolean(settings.accessToken),
+      communityLink:
+        settings.communityLink ||
+        "https://chat.whatsapp.com/H9sm1PHu9uU6ITuzQVgjtO",
+    },
   });
 });
 
@@ -2763,6 +3340,12 @@ app.put("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
     adminWhatsAppNumber,
     customSuccessMessage,
     buttonText,
+    autoSendOnPayment,
+    phoneNumberId,
+    accessToken,
+    businessAccountId,
+    templateName,
+    templateLanguage,
   } = req.body;
 
   if (communityLink !== undefined) {
@@ -2789,18 +3372,230 @@ app.put("/api/admin/whatsapp-settings", authenticateAdmin, (req, res) => {
     db.whatsappSettings.buttonText = String(buttonText).trim();
     db.communicationSettings.buttonText = String(buttonText).trim();
   }
+  if (autoSendOnPayment !== undefined) {
+    db.whatsappSettings.autoSendOnPayment = Boolean(autoSendOnPayment);
+  }
+  if (phoneNumberId !== undefined) {
+    db.whatsappSettings.phoneNumberId = String(phoneNumberId).trim();
+  }
+  if (accessToken !== undefined && !String(accessToken).includes("••••")) {
+    db.whatsappSettings.accessToken = String(accessToken).trim();
+  }
+  if (businessAccountId !== undefined) {
+    db.whatsappSettings.businessAccountId = String(businessAccountId).trim();
+  }
+  if (templateName !== undefined) {
+    db.whatsappSettings.templateName = String(templateName).trim();
+  }
+  if (templateLanguage !== undefined) {
+    db.whatsappSettings.templateLanguage = String(templateLanguage).trim();
+  }
 
   saveDB(db);
   addAuditLog(
     (req as any).admin.username,
     "UPDATE_WHATSAPP_SETTINGS",
-    `Updated WhatsApp Settings: Link ${db.whatsappSettings.communityLink}`,
+    `Updated WhatsApp Settings: AutoSend=${db.whatsappSettings.autoSendOnPayment}, Link=${db.whatsappSettings.communityLink}`,
   );
 
   res.json({
     success: true,
     message: "WhatsApp सेटिंग्ज यशस्वीरित्या सेव्ह केल्या.",
-    whatsappSettings: db.whatsappSettings,
+    whatsappSettings: {
+      ...db.whatsappSettings,
+      accessToken: db.whatsappSettings.accessToken ? "••••••••" : "",
+    },
+  });
+});
+
+// Test Message Dispatch (Reports real API result)
+app.post("/api/admin/whatsapp/send-test", authenticateAdmin, async (req, res) => {
+  const { testNumber } = req.body;
+  const settings = db.whatsappSettings;
+  const phoneNumberId =
+    settings.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+  const accessToken =
+    settings.accessToken || process.env.WHATSAPP_ACCESS_TOKEN || "";
+
+  const targetNumber = (
+    testNumber ||
+    settings.adminWhatsAppNumber ||
+    "9801555171"
+  ).replace(/\D/g, "");
+  const recipient =
+    targetNumber.length === 10 ? "91" + targetNumber : targetNumber;
+
+  if (!phoneNumberId || !accessToken) {
+    settings.lastTestStatus = "FAILED";
+    settings.lastTestError =
+      "Meta WhatsApp Cloud API credentials missing: Phone Number ID and Access Token are required.";
+    settings.lastTestedAt = new Date().toISOString();
+    saveDB(db);
+
+    return res.status(400).json({
+      success: false,
+      status: "NOT_CONFIGURED",
+      error:
+        "WhatsApp Business API credentials (Phone Number ID / Access Token) not configured on server.",
+      details: {
+        phoneNumberIdConfigured: Boolean(phoneNumberId),
+        accessTokenConfigured: Boolean(accessToken),
+        recipient,
+        instructions:
+          "Please enter your WhatsApp Phone Number ID and Permanent Access Token in WhatsApp Settings to enable automatic WhatsApp dispatch.",
+      },
+    });
+  }
+
+  try {
+    const testMsg = `🔔 AI Marathi Guru Test Message\n\nWhatsApp Automation status: Connected!\nTime: ${new Date().toLocaleString("en-IN")}\nRecipient: +${recipient}\n\nThis is a real API test message verifying Meta WhatsApp Cloud API credentials.`;
+
+    const apiUrl = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+    const metaRes = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient,
+        type: "text",
+        text: { preview_url: true, body: testMsg },
+      }),
+    });
+
+    const metaData: any = await metaRes.json();
+    settings.lastTestedAt = new Date().toISOString();
+
+    if (metaRes.ok && metaData.messages && metaData.messages[0]?.id) {
+      settings.lastTestStatus = "SUCCESS";
+      settings.lastTestError = undefined;
+      saveDB(db);
+      return res.json({
+        success: true,
+        message: `Test message sent successfully to +${recipient}!`,
+        apiResponse: metaData,
+        httpStatus: metaRes.status,
+      });
+    } else {
+      const errDetail =
+        metaData.error?.message || JSON.stringify(metaData);
+      settings.lastTestStatus = "FAILED";
+      settings.lastTestError = errDetail;
+      saveDB(db);
+      return res.status(400).json({
+        success: false,
+        error: `Meta WhatsApp API returned an error (${metaRes.status}): ${errDetail}`,
+        apiResponse: metaData,
+        httpStatus: metaRes.status,
+      });
+    }
+  } catch (netErr: any) {
+    const errMsg = netErr?.message || "Network error contacting Meta API.";
+    settings.lastTestStatus = "FAILED";
+    settings.lastTestError = errMsg;
+    saveDB(db);
+    return res.status(500).json({
+      success: false,
+      error: errMsg,
+    });
+  }
+});
+
+// Retry Failed WhatsApp Messages (Batch)
+app.post(
+  "/api/admin/whatsapp/retry-failed",
+  authenticateAdmin,
+  async (req, res) => {
+    const eligibleStudents = db.students.filter(
+      (s) =>
+        s.paymentStatus === "PAID" && s.whatsappDeliveryStatus === "FAILED",
+    );
+
+    if (eligibleStudents.length === 0) {
+      return res.json({
+        success: true,
+        message: "कोणतेही अयशस्वी झालेले WhatsApp मेसेज सापडले नाहीत.",
+        retriedCount: 0,
+        succeededCount: 0,
+        failedCount: 0,
+      });
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const student of eligibleStudents) {
+      const result = await sendWhatsAppConfirmation(student, true);
+      if (result.success) {
+        succeeded++;
+      } else {
+        failed++;
+        if (result.error && !errors.includes(result.error)) {
+          errors.push(result.error);
+        }
+      }
+    }
+
+    saveDB(db);
+
+    return res.json({
+      success: true,
+      message: `${eligibleStudents.length} पैकी ${succeeded} मेसेजेस यशस्वीरित्या पुन्हा पाठवले.`,
+      retriedCount: eligibleStudents.length,
+      succeededCount: succeeded,
+      failedCount: failed,
+      errors,
+    });
+  },
+);
+
+// Retry Single Student WhatsApp Message
+app.post(
+  "/api/admin/whatsapp/retry/:studentId",
+  authenticateAdmin,
+  async (req, res) => {
+    const { studentId } = req.params;
+    const student = db.students.find((s) => s.id === studentId);
+
+    if (!student) {
+      return res.status(404).json({ error: "विद्यार्थी सापडला नाही." });
+    }
+
+    if (student.paymentStatus !== "PAID") {
+      return res.status(400).json({
+        error:
+          "फक्त PAID (शुल्क भरलेल्या) विद्यार्थ्यांसाठीच WhatsApp कन्फर्मेशन पाठवता येते.",
+      });
+    }
+
+    const result = await sendWhatsAppConfirmation(student, true);
+    saveDB(db);
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        message: `${student.fullName} यांना WhatsApp मेसेज यशस्वीरित्या पाठवला.`,
+        deliveryStatus: student.whatsappDeliveryStatus,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: result.error || "मेसेज पाठवता आला नाही.",
+        deliveryStatus: student.whatsappDeliveryStatus,
+      });
+    }
+  },
+);
+
+// WhatsApp Delivery Logs
+app.get("/api/admin/whatsapp/logs", authenticateAdmin, (req, res) => {
+  res.json({
+    success: true,
+    logs: db.whatsappDeliveryLogs || [],
   });
 });
 

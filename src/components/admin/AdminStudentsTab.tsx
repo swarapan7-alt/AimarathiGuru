@@ -44,6 +44,32 @@ export const AdminStudentsTab: React.FC<AdminStudentsTabProps> = ({
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState('ALL');
   const [selectedRegStatus, setSelectedRegStatus] = useState('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const handleRetryWhatsApp = async (studentId: string) => {
+    setRetryingId(studentId);
+    const token = localStorage.getItem('amg_admin_token');
+    try {
+      const res = await fetch(`/api/admin/whatsapp/retry/${encodeURIComponent(studentId)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('WhatsApp संदेश यशस्वीरित्या पाठवला गेला! ID: ' + (data.messageId || 'Success'));
+      } else {
+        alert('त्रुटी: ' + (data.error || 'मेसेज पाठवता आला नाही.'));
+      }
+      onRefresh();
+    } catch (e: any) {
+      alert('सर्व्हरशी संपर्क होऊ शकला नाही: ' + e.message);
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   // Filter students locally based on all criteria
   const filteredStudents = students.filter((s) => {
@@ -395,27 +421,60 @@ export const AdminStudentsTab: React.FC<AdminStudentsTabProps> = ({
                         )}
                       </td>
 
-                      {/* 8. Quick Copy & WhatsApp Buttons */}
+                      {/* 8. WhatsApp Status & Actions */}
                       <td className="px-3.5 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleCopyMessage(s)}
-                            className="p-1 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition cursor-pointer"
-                            title="Copy Formatted WhatsApp Message"
-                          >
-                            {copiedId === s.id ? (
-                              <Check className="w-3 h-3 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleOpenWhatsApp(s)}
-                            className="p-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
-                            title="Send WhatsApp Message Directly"
-                          >
-                            <MessageCircle className="w-3 h-3" />
-                          </button>
+                        <div className="flex flex-col items-center gap-1">
+                          {/* Delivery Badge */}
+                          {s.whatsappDeliveryStatus === 'SENT' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-black font-poppins">
+                              <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> SENT
+                            </span>
+                          ) : s.whatsappDeliveryStatus === 'FAILED' ? (
+                            <div className="flex items-center gap-1">
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 text-[9px] font-black font-poppins cursor-help"
+                                title={s.whatsappLastError || 'WhatsApp पाठवता आले नाही'}
+                              >
+                                <XCircle className="w-2.5 h-2.5 text-red-600" /> FAILED
+                              </span>
+                              {s.paymentStatus === 'PAID' && (
+                                <button
+                                  onClick={() => handleRetryWhatsApp(s.id)}
+                                  disabled={retryingId === s.id}
+                                  className="px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 text-[9px] font-bold cursor-pointer"
+                                  title="Retry WhatsApp Message"
+                                >
+                                  {retryingId === s.id ? '...' : 'Retry'}
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold font-poppins">
+                              <Clock className="w-2.5 h-2.5 text-slate-400" /> {s.whatsappDeliveryStatus || 'PENDING'}
+                            </span>
+                          )}
+
+                          {/* Quick Copy & WhatsApp App Buttons */}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <button
+                              onClick={() => handleCopyMessage(s)}
+                              className="p-1 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition cursor-pointer"
+                              title="Copy Formatted WhatsApp Message"
+                            >
+                              {copiedId === s.id ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleOpenWhatsApp(s)}
+                              className="p-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
+                              title="Open in WhatsApp Web / App"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </td>
 

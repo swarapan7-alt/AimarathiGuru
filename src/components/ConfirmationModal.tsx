@@ -156,17 +156,37 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             </p>
           </div>
 
-          {/* STEP 2 / ACTION: Send Confirmation via WhatsApp App */}
+          {/* STEP 2 / ACTION: WhatsApp Confirmation Status & App Opener */}
           <div className="p-5 rounded-3xl bg-slate-50 border-2 border-emerald-500/30 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span>WhatsApp Confirmation Message</span>
+                <span>WhatsApp Confirmation Status</span>
               </span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                PRE-FILLED
-              </span>
+              {registration.whatsappDeliveryStatus === 'SENT' ? (
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> SENT AUTOMATICALLY
+                </span>
+              ) : registration.whatsappDeliveryStatus === 'FAILED' ? (
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                  MANUAL / API PENDING
+                </span>
+              ) : (
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
+                  READY TO SEND
+                </span>
+              )}
             </div>
+
+            {registration.whatsappDeliveryStatus === 'SENT' ? (
+              <p className="text-xs text-emerald-800 font-medium bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                ✓ तुमच्या <strong>+91{registration.whatsappNumber || registration.mobileNumber}</strong> या WhatsApp नंबरवर अधिकृत कन्फर्मेशन पाठवले आहे.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-600 font-medium">
+                नोंदणी पावती आणि कम्युनिटी लिंक तुमच्या WhatsApp वर सेव्ह करण्यासाठी खालील बटणावर क्लिक करा:
+              </p>
+            )}
 
             <button
               type="button"
@@ -174,7 +194,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
               className="w-full py-4 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-700/20 transition flex items-center justify-center gap-2.5 cursor-pointer uppercase tracking-wider font-poppins"
             >
               <MessageCircle className="w-5 h-5 fill-white text-emerald-600 shrink-0" />
-              <span>📱 SEND VIA WHATSAPP APP</span>
+              <span>📱 OPEN IN WHATSAPP APP</span>
             </button>
 
             <div className="p-3.5 rounded-2xl bg-slate-900 text-emerald-400 font-mono text-xs whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner max-h-36 overflow-y-auto">
